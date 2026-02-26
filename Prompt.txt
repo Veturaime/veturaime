@@ -1,0 +1,16 @@
+Detyra juaj është të ndërtoni një landing page  kryesore  të jashtëzakonshme për këtë faqe. 
+Dua që të jetë krijuese dhe unike. Vërtet shtyni kufijtë e aftësive tuaja të dizajnit.
+
+Qasja më e mirë për "Veturaime" është ta trajtosh landing page-in si një mjet pune 
+dhe jo si një reklamë. Për ta bërë këtë sa më qartë, harro seksionet e marketingut
+ dhe përshkrimet e gjata. Faqja jote duhet të jetë një urë e shpejtë mes përdoruesit
+  dhe të dhënave të tij. Në krye të faqes vendos një titull të vetëm që thotë qartë se 
+  çfarë është aplikacioni, për shembull "Veturaime: Menaxhimi i historikut të veturës suaj",
+   dhe menjëherë pas tij vendos një buton ose një fushë të thjeshtë kërkimi 
+   që i lejon përdoruesit të fillojë regjistrimin ose të hyjë në dashboard pa klikime shtesë.
+
+kjo eshte edhe me supabase qelsat jane ,https://pijcahpqevnuvcnlmfzo.supabase.co dhe eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpamNhaHBxZXZudXZjbmxtZnpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMjkzMzYsImV4cCI6MjA4NzcwNTMzNn0.Z0f5XDUSgfA_oq_tMzitoUGcs-nLMTR6zTy2HN8Nd6o
+Dua që të krijoni PESË dizajne të ndryshme.
+Çdo dizajn duhet të jetë krijues dhe unik nga të gjithë të tjerët që krijoni. Ato duhet të vendosen në /1, /2, /3, /4 dhe /5 përkatësisht.
+
+Më tregoni aftësitë tuaja të integruara organike për një dizajn me shije.

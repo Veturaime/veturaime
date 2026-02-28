@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { supabase } from "../lib/supabase";
+import { hasCompletedOnboarding, supabase } from "../lib/supabase";
 
 type LoginForm = {
   email: string;
@@ -53,7 +53,8 @@ function LoginPage() {
         sessionStorage.setItem("veturaime_access_token", data.session.access_token);
       }
 
-      navigate("/dashboard");
+      const onboardingCompleted = await hasCompletedOnboarding();
+      navigate(onboardingCompleted ? "/dashboard" : "/onboarding");
     } catch {
       setError("Identifikimi dështoi. Provo përsëri.");
     } finally {
@@ -71,23 +72,23 @@ function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-white px-4 py-10 font-body text-deep">
-      <div className="mx-auto w-full max-w-md rounded-3xl border border-deep/10 bg-white p-6 shadow-[0_20px_60px_rgba(20,39,58,0.12)] md:p-8">
+    <main className="relative min-h-screen overflow-hidden bg-white px-4 py-10 font-body text-deep antialiased">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(72,242,194,0.12),transparent_36%),radial-gradient(circle_at_88%_14%,rgba(20,39,58,0.07),transparent_36%)]" />
+      <div className="relative mx-auto w-full max-w-md rounded-3xl border border-deep/10 bg-white/95 p-6 shadow-[0_28px_80px_rgba(20,39,58,0.14)] backdrop-blur-sm md:p-8">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-slateBlue transition hover:underline"
+          className="ui-interactive inline-flex items-center gap-2 text-sm font-semibold text-slateBlue transition hover:underline"
         >
           ← Kthehu mbrapa
         </button>
 
-        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-slateBlue text-mint">
+        <div className="mx-auto mt-1 grid h-14 w-14 place-items-center rounded-2xl bg-slateBlue text-mint shadow-[0_10px_24px_rgba(31,100,136,0.28)]">
           <span className="text-2xl">🛡</span>
         </div>
 
-        <h1 className="mt-5 text-center font-display text-4xl text-slateBlue">Mirë se u ktheve</h1>
+        <h1 className="mt-5 text-center font-display text-4xl tracking-[-0.02em] text-slateBlue">Mirë se u ktheve</h1>
         <p className="mt-2 text-center text-sm text-deep/70">Hyr dhe vazhdo menaxhimin aty ku e le.</p>
-
         <form onSubmit={onSubmit} className="mt-7 space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-deep/85">Email</label>
@@ -95,7 +96,7 @@ function LoginPage() {
               type="email"
               value={form.email}
               onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-              className="h-12 w-full rounded-xl border border-deep/15 bg-white px-3 outline-none ring-mint/40 transition focus:ring"
+              className="h-12 w-full rounded-xl border border-deep/15 bg-white px-3 outline-none ring-mint/40 transition focus:border-slateBlue/30 focus:ring focus:ring-mint/35"
               placeholder="emri@shembull.com"
               required
             />
@@ -108,14 +109,14 @@ function LoginPage() {
                 type={showPassword ? "text" : "password"}
                 value={form.password}
                 onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
-                className="h-12 w-full rounded-xl border border-deep/15 bg-white px-3 pr-12 outline-none ring-mint/40 transition focus:ring"
+                className="h-12 w-full rounded-xl border border-deep/15 bg-white px-3 pr-12 outline-none ring-mint/40 transition focus:border-slateBlue/30 focus:ring focus:ring-mint/35"
                 placeholder="********"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slateBlue"
+                className="ui-interactive absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slateBlue"
               >
                 {showPassword ? "Fshi" : "Shfaq"}
               </button>
@@ -132,7 +133,7 @@ function LoginPage() {
               />
               Më maj në mend
             </label>
-            <button type="button" className="text-sm font-semibold text-slateBlue hover:underline">
+            <button type="button" className="ui-interactive text-sm font-semibold text-slateBlue hover:underline">
               E harrove fjalëkalimin?
             </button>
           </div>
@@ -142,7 +143,7 @@ function LoginPage() {
           <button
             type="submit"
             disabled={!isValid || loading}
-            className="h-12 w-full rounded-xl bg-slateBlue font-bold text-white transition hover:bg-deep disabled:cursor-not-allowed disabled:bg-slateBlue/50"
+            className="ui-interactive h-12 w-full rounded-xl bg-slateBlue font-bold text-white shadow-[0_14px_36px_rgba(31,100,136,0.32)] transition hover:bg-deep disabled:cursor-not-allowed disabled:bg-slateBlue/50 disabled:shadow-none"
           >
             {loading ? "Tu hi..." : "Hyr"}
           </button>

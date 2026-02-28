@@ -9,3 +9,17 @@ body {
   min-height: 100vh;
   font-family: "Plus Jakarta Sans", sans-serif;
 }
+
+@layer utilities {
+  .ui-interactive {
+    @apply transition duration-200 ease-out;
+  }
+
+  .ui-interactive:where(:hover) {
+    @apply will-change-transform;
+  }
+
+  .ui-interactive:where(:focus-visible) {
+    @apply outline-none ring-2 ring-mint/45 ring-offset-2 ring-offset-white;
+  }
+}

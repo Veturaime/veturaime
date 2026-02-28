@@ -4,9 +4,23 @@
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
+  transmission_preference text,
+  car_body_preference text,
+  car_style_preference text,
+  fuel_consumption_priority text,
+  electric_future_preference text,
+  onboarding_completed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.profiles
+  add column if not exists transmission_preference text,
+  add column if not exists car_body_preference text,
+  add column if not exists car_style_preference text,
+  add column if not exists fuel_consumption_priority text,
+  add column if not exists electric_future_preference text,
+  add column if not exists onboarding_completed_at timestamptz;
 
 create or replace function public.set_updated_at()
 returns trigger

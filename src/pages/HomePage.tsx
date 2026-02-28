@@ -59,11 +59,11 @@ function HomePage() {
   const [openFaq, setOpenFaq] = useState(0);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-white font-body text-deep">
+    <main className="relative min-h-screen overflow-hidden bg-white font-body text-deep antialiased">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(72,242,194,0.12),transparent_36%),radial-gradient(circle_at_88%_14%,rgba(20,39,58,0.07),transparent_36%)]" />
       <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(20,39,58,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(20,39,58,0.08)_1px,transparent_1px)] [background-size:32px_32px]" />
 
-      <header className="sticky top-0 z-30 border-b border-deep/10 bg-white/90 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-deep/10 bg-white/90 shadow-[0_10px_30px_rgba(20,39,58,0.05)] backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 md:h-16 md:flex-nowrap md:gap-0 md:px-8 md:py-0">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 overflow-hidden rounded-xl ring-1 ring-mint/35">
@@ -74,14 +74,14 @@ function HomePage() {
             </div>
           </div>
 
-          <nav className="order-3 flex w-full items-center justify-center gap-7 border-t border-deep/10 pt-2 text-sm font-semibold text-deep/80 md:order-none md:w-auto md:border-t-0 md:pt-0">
-            <a href="#ballina" className="transition hover:text-slateBlue">
+          <nav className="order-3 flex w-full items-center justify-center gap-7 border-t border-deep/10 pt-2 text-sm font-semibold tracking-[0.01em] text-deep/80 md:order-none md:w-auto md:border-t-0 md:pt-0">
+            <a href="#ballina" className="ui-interactive transition hover:text-slateBlue">
               Ballina
             </a>
-            <a href="#si-funksionon" className="transition hover:text-slateBlue">
+            <a href="#si-funksionon" className="ui-interactive transition hover:text-slateBlue">
               Si funksionon
             </a>
-            <a href="#pagesa" className="transition hover:text-slateBlue">
+            <a href="#pagesa" className="ui-interactive transition hover:text-slateBlue">
               Pagesa
             </a>
           </nav>
@@ -89,13 +89,13 @@ function HomePage() {
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
               to="/register"
-              className="inline-flex rounded-full border border-slateBlue/20 px-3 py-2 text-xs font-semibold text-slateBlue transition hover:bg-slateBlue/5"
+              className="ui-interactive inline-flex rounded-full border border-slateBlue/20 px-3 py-2 text-xs font-semibold text-slateBlue transition hover:border-slateBlue/35 hover:bg-slateBlue/5"
             >
               Regjistrohu falas
             </Link>
             <Link
               to="/login"
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-mint px-4 text-sm font-bold text-deep transition hover:-translate-y-0.5"
+              className="ui-interactive inline-flex h-10 items-center justify-center rounded-xl bg-mint px-4 text-sm font-bold text-deep shadow-[0_12px_30px_rgba(72,242,194,0.35)] transition hover:-translate-y-0.5 hover:brightness-95"
             >
               Hyr
             </Link>
@@ -104,7 +104,7 @@ function HomePage() {
       </header>
 
       <section id="ballina" className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-16 pt-12 text-center md:px-8 md:pt-20 lg:pb-24">
-        <h1 className="mx-auto mt-9 max-w-5xl font-display text-5xl leading-[0.95] text-slateBlue md:text-7xl">
+        <h1 className="mx-auto mt-9 max-w-5xl font-display text-5xl leading-[0.95] tracking-[-0.02em] text-slateBlue md:text-7xl">
           Menaxho veturën pa stres dhe pa kaos.
         </h1>
 
@@ -112,7 +112,7 @@ function HomePage() {
           Të gjitha të dhënat në një vend
         </p>
 
-        <p className="mx-auto mt-6 max-w-4xl text-xl leading-relaxed text-deep/65 md:text-[2rem]">
+        <p className="mx-auto mt-6 max-w-4xl text-xl leading-relaxed text-deep/70 md:text-[2rem]">
           Ruaj servisimet, dokumentet dhe shpenzimet në një panel të vetëm. Hyr shpejt, gjej historikun e
           saktë dhe mos humb më afate të rëndësishme.
         </p>
@@ -120,27 +120,33 @@ function HomePage() {
         <div className="mx-auto mt-10 flex max-w-4xl flex-wrap items-center justify-center gap-4">
             <button
               type="button"
-            className="inline-flex h-11 min-w-[170px] items-center justify-center rounded-2xl border border-mint/40 bg-mint/10 px-5 text-base font-semibold text-slateBlue transition hover:bg-mint/20 md:h-14 md:min-w-[220px] md:px-7 md:text-xl"
+            className="ui-interactive inline-flex h-11 min-w-[170px] items-center justify-center rounded-2xl border border-mint/45 bg-mint/10 px-5 text-base font-semibold text-slateBlue shadow-[0_14px_28px_rgba(72,242,194,0.18)] transition hover:-translate-y-0.5 hover:bg-mint/20 md:h-14 md:min-w-[220px] md:px-7 md:text-xl"
           >
             Permbajtja
             </button>
         </div>
+
+        <div className="mx-auto mt-6 flex max-w-4xl flex-wrap items-center justify-center gap-2 text-xs font-semibold text-deep/75 md:text-sm">
+          <span className="rounded-full border border-slateBlue/20 bg-white/85 px-3 py-1">Sinkronizim i sigurt</span>
+          <span className="rounded-full border border-mint/50 bg-mint/10 px-3 py-1">Setup në &lt; 2 minuta</span>
+          <span className="rounded-full border border-slateBlue/20 bg-white/85 px-3 py-1">Historik i qartë</span>
+        </div>
       </section>
 
       <section className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-10 md:px-8 md:pb-16">
-        <div className="rounded-[1.6rem] border border-deep/10 bg-white/70 p-3 sm:p-5">
+        <div className="rounded-[1.6rem] border border-deep/10 bg-white/75 p-3 shadow-[0_24px_60px_rgba(20,39,58,0.1)] backdrop-blur-sm sm:p-5">
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-3 sm:gap-6">
           <div className="min-w-0">
             <img
               src={carShowcaseImage}
               alt="Veturë sportive blu"
-              className="h-[220px] w-full rounded-[1.1rem] border border-deep/10 object-cover shadow-[0_24px_60px_rgba(20,39,58,0.16)] sm:h-[330px] sm:rounded-[1.5rem] md:h-[390px]"
+              className="h-[220px] w-full rounded-[1.1rem] border border-deep/10 object-cover shadow-[0_28px_70px_rgba(20,39,58,0.18)] sm:h-[330px] sm:rounded-[1.5rem] md:h-[390px]"
             />
           </div>
 
           <div className="grid min-w-0 gap-3 sm:gap-4">
             {quickCards.map((card, index) => (
-              <article key={card.title} className={`min-w-0 rounded-[1rem] border p-3 sm:rounded-[1.4rem] sm:p-6 ${index === 1 ? "border-mint/35 bg-mint/5" : "border-deep/10 bg-white"}`}>
+              <article key={card.title} className={`ui-interactive min-w-0 rounded-[1rem] border p-3 shadow-[0_12px_30px_rgba(20,39,58,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(20,39,58,0.1)] sm:rounded-[1.4rem] sm:p-6 ${index === 1 ? "border-mint/40 bg-mint/10" : "border-deep/10 bg-white/95"}`}>
                 <h3 className="font-display text-[1.05rem] leading-tight text-slateBlue sm:text-2xl">{card.title}</h3>
                 <p className="mt-2 text-xs leading-relaxed text-deep/75 sm:mt-3 sm:text-sm">{card.desc}</p>
               </article>
@@ -151,6 +157,8 @@ function HomePage() {
       </section>
 
       <section id="si-funksionon" className="relative z-10 bg-slateBlue/5 py-16 text-deep md:py-24">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-slateBlue/25 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-slateBlue/20 to-transparent" />
         <div className="mx-auto w-full max-w-7xl px-4 md:px-8">
           <div className="text-center">
             <h2 className="font-display text-5xl md:text-6xl">Si funksionon VeturaIme</h2>
@@ -159,7 +167,7 @@ function HomePage() {
 
           <div className="mt-12 grid gap-5 md:grid-cols-3">
             {steps.map((step) => (
-              <article key={step.number} className="rounded-[1.4rem] border border-deep/10 bg-white p-6 shadow-[0_16px_40px_rgba(20,39,58,0.08)]">
+              <article key={step.number} className="ui-interactive rounded-[1.4rem] border border-deep/10 bg-white p-6 shadow-[0_16px_40px_rgba(20,39,58,0.08)] transition hover:-translate-y-1 hover:border-slateBlue/20 hover:shadow-[0_22px_50px_rgba(20,39,58,0.12)]">
                 <div className="inline-flex rounded-full bg-slateBlue px-3 py-1 text-xs font-semibold tracking-[0.16em] text-mint">
                   {step.number}
                 </div>
@@ -177,7 +185,7 @@ function HomePage() {
           <h2 className="mt-3 font-display text-5xl md:text-6xl">Çfarë duhet të dish</h2>
         </div>
 
-        <div className="mt-10 divide-y divide-deep/10 rounded-[1.4rem] border border-deep/10 bg-white">
+        <div className="mt-10 divide-y divide-deep/10 rounded-[1.4rem] border border-deep/10 bg-white shadow-[0_18px_48px_rgba(20,39,58,0.08)]">
           {faqs.map((faq, index) => {
             const opened = openFaq === index;
 
@@ -185,11 +193,11 @@ function HomePage() {
               <article key={faq.q} className="px-5 py-5 md:px-7">
                 <button
                   type="button"
-                  className="flex w-full items-start justify-between gap-4 text-left"
+                  className="ui-interactive flex w-full items-start justify-between gap-4 text-left transition hover:text-slateBlue"
                   onClick={() => setOpenFaq(opened ? -1 : index)}
                 >
                   <span className="font-semibold text-slateBlue">{faq.q}</span>
-                  <span className="text-xl leading-none text-mint">{opened ? "−" : "+"}</span>
+                  <span className={`text-xl leading-none transition ${opened ? "text-slateBlue" : "text-mint"}`}>{opened ? "−" : "+"}</span>
                 </button>
                 {opened ? <p className="mt-3 max-w-3xl text-sm text-deep/75">{faq.a}</p> : null}
               </article>
@@ -206,7 +214,7 @@ function HomePage() {
           </div>
 
           <div className="mx-auto mt-10 grid max-w-4xl grid-cols-2 items-stretch gap-3 sm:gap-5">
-            <article className="flex h-full flex-col rounded-[1rem] border border-deep/10 bg-white p-3 shadow-[0_14px_35px_rgba(20,39,58,0.10)] sm:rounded-[1.2rem] sm:p-6">
+            <article className="ui-interactive flex h-full flex-col rounded-[1rem] border border-deep/10 bg-white p-3 shadow-[0_14px_35px_rgba(20,39,58,0.10)] transition hover:-translate-y-1 hover:shadow-[0_20px_48px_rgba(20,39,58,0.14)] sm:rounded-[1.2rem] sm:p-6">
               <div className="flex items-center gap-2">
                 <span className="inline-flex h-4 w-4 rounded-full bg-slateBlue" />
                 <p className="text-xs font-semibold text-slateBlue sm:text-sm">Plani Bazë</p>
@@ -224,13 +232,16 @@ function HomePage() {
 
               <button
                 type="button"
-                className="mt-5 inline-flex h-9 w-full items-center justify-center rounded-full border border-slateBlue/35 px-2 text-xs font-semibold text-slateBlue transition hover:bg-slateBlue/5 sm:mt-6 sm:h-10 sm:text-sm"
+                className="ui-interactive mt-5 inline-flex h-9 w-full items-center justify-center rounded-full border border-slateBlue/35 px-2 text-xs font-semibold text-slateBlue transition hover:bg-slateBlue/5 sm:mt-6 sm:h-10 sm:text-sm"
               >
                 Fillo tani
               </button>
             </article>
 
-            <article className="flex h-full flex-col rounded-[1rem] border border-slateBlue/25 bg-white p-3 shadow-[0_14px_35px_rgba(20,39,58,0.12)] sm:rounded-[1.2rem] sm:p-6">
+            <article className="ui-interactive relative flex h-full flex-col rounded-[1rem] border border-slateBlue/25 bg-white p-3 shadow-[0_14px_35px_rgba(20,39,58,0.12)] transition hover:-translate-y-1 hover:shadow-[0_24px_52px_rgba(20,39,58,0.16)] sm:rounded-[1.2rem] sm:p-6">
+              <span className="absolute -top-2.5 right-3 rounded-full bg-mint px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-deep sm:text-[11px]">
+                Më i zgjedhuri
+              </span>
               <div className="flex items-center gap-2">
                 <span className="inline-flex h-4 w-4 rounded-full bg-slateBlue" />
                 <p className="text-xs font-semibold text-slateBlue sm:text-sm">Bazë Plus</p>
@@ -248,12 +259,14 @@ function HomePage() {
 
               <button
                 type="button"
-                className="mt-5 inline-flex h-9 w-full items-center justify-center rounded-full bg-slateBlue px-2 text-xs font-semibold text-white transition hover:bg-deep sm:mt-6 sm:h-10 sm:text-sm"
+                className="ui-interactive mt-5 inline-flex h-9 w-full items-center justify-center rounded-full bg-slateBlue px-2 text-xs font-semibold text-white transition hover:bg-deep sm:mt-6 sm:h-10 sm:text-sm"
               >
                 Fillo tani
               </button>
             </article>
           </div>
+
+          <p className="mt-4 text-center text-xs font-semibold text-deep/65 sm:text-sm">Pa kontratë afatgjatë • Ndërprerje kur të duash</p>
         </div>
       </section>
 
@@ -271,22 +284,22 @@ function HomePage() {
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slateBlue">Linqe të shpejta</p>
                 <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
-                  <a href="#ballina" className="rounded-full border border-slateBlue/20 bg-slateBlue/5 px-3 py-1.5 text-sm text-slateBlue transition hover:bg-slateBlue/10">Ballina</a>
-                  <a href="#si-funksionon" className="rounded-full border border-mint/45 bg-mint/10 px-3 py-1.5 text-sm text-deep transition hover:bg-mint/20">Si funksionon</a>
-                  <a href="#pagesa" className="rounded-full border border-slateBlue/20 bg-slateBlue/5 px-3 py-1.5 text-sm text-slateBlue transition hover:bg-slateBlue/10">Pagesa</a>
+                  <a href="#ballina" className="ui-interactive rounded-full border border-slateBlue/20 bg-slateBlue/5 px-3 py-1.5 text-sm text-slateBlue transition hover:bg-slateBlue/10">Ballina</a>
+                  <a href="#si-funksionon" className="ui-interactive rounded-full border border-mint/45 bg-mint/10 px-3 py-1.5 text-sm text-deep transition hover:bg-mint/20">Si funksionon</a>
+                  <a href="#pagesa" className="ui-interactive rounded-full border border-slateBlue/20 bg-slateBlue/5 px-3 py-1.5 text-sm text-slateBlue transition hover:bg-slateBlue/10">Pagesa</a>
                 </div>
               </div>
 
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slateBlue">Na ndiq</p>
                 <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
-                  <a href="https://instagram.com" target="_blank" rel="noreferrer" className="rounded-full border border-slateBlue/20 bg-slateBlue/5 px-3 py-1.5 text-sm text-slateBlue transition hover:bg-slateBlue/10">
+                  <a href="https://instagram.com" target="_blank" rel="noreferrer" className="ui-interactive rounded-full border border-slateBlue/20 bg-slateBlue/5 px-3 py-1.5 text-sm text-slateBlue transition hover:bg-slateBlue/10">
                     Instagram
                   </a>
-                  <a href="https://linkedin.com" target="_blank" rel="noreferrer" className="rounded-full border border-slateBlue/20 bg-slateBlue/5 px-3 py-1.5 text-sm text-slateBlue transition hover:bg-slateBlue/10">
+                  <a href="https://linkedin.com" target="_blank" rel="noreferrer" className="ui-interactive rounded-full border border-slateBlue/20 bg-slateBlue/5 px-3 py-1.5 text-sm text-slateBlue transition hover:bg-slateBlue/10">
                     LinkedIn
                   </a>
-                  <a href="mailto:info@veturaime.com" className="rounded-full border border-mint/45 bg-mint/10 px-3 py-1.5 text-sm text-deep transition hover:bg-mint/20">
+                  <a href="mailto:info@veturaime.com" className="ui-interactive rounded-full border border-mint/45 bg-mint/10 px-3 py-1.5 text-sm text-deep transition hover:bg-mint/20">
                     info@veturaime.com
                   </a>
                 </div>

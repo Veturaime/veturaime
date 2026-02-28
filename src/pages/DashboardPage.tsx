@@ -1,7 +1,43 @@
-import { Link, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { hasCompletedOnboarding, supabase } from "../lib/supabase";
 
 function DashboardPage() {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const guardDashboard = async () => {
+      const { data } = await supabase.auth.getUser();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (!data.user) {
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      const completed = await hasCompletedOnboarding();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (!completed) {
+        navigate("/onboarding", { replace: true });
+      }
+    };
+
+    void guardDashboard();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [navigate]);
 
   return (
     <main className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_20%_20%,#1c2732,#0d1218)] p-4 text-slate-100">

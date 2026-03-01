@@ -1,7 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { DocumentRow, ExpenseRow, ServiceRecordRow } from "../lib/database.types";
-import { getVehicleDashboardData, supabase, type VehicleDashboardData, updateCar } from "../lib/supabase";
+import {
+  createDocument,
+  createExpense,
+  createServiceRecord,
+  deleteServiceRecord,
+  getVehicleDashboardData,
+  supabase,
+  updateServiceRecord,
+  type VehicleDashboardData,
+  updateCar
+} from "../lib/supabase";
 import {
   BODY_TYPES,
   COLORS,
@@ -24,6 +34,14 @@ const dateFormatter = new Intl.DateTimeFormat("sq-AL", {
   month: "short",
   year: "numeric"
 });
+
+const todayIso = new Date().toISOString().split("T")[0];
+
+type DocumentFilter = "all" | "expiring" | "expired";
+type DocumentKind = "registration" | "insurance" | "inspection" | "authorization" | "invoice" | "manual";
+type ServiceKind = "oil_change" | "brakes" | "tires" | "battery" | "antifreeze" | "general" | "other";
+type ExpenseKind = "fuel" | "service" | "documents" | "parts" | "parking_fines" | "other";
+type ReportEventFilter = "documents" | "services" | "expenses";
 
 function formatCurrency(value: number) {
   return currencyFormatter.format(value);
@@ -66,27 +84,197 @@ function getDocumentStatus(expiresOn: string | null) {
   return { status: "ok", label: `${days} ditë`, color: "emerald", icon: "✓" };
 }
 
+function getDocumentReportStatus(expiresOn: string | null): "ok" | "expiring" | "expired" {
+  const days = getDaysUntil(expiresOn);
+
+  if (days === null) return "ok";
+  if (days < 0) return "expired";
+  if (days <= 30) return "expiring";
+  return "ok";
+}
+
 // Document type icons and labels
 const DOCUMENT_TYPES: Record<string, { label: string; icon: string }> = {
   registration: { label: "Regjistrimi", icon: "📋" },
   insurance: { label: "Sigurimi", icon: "🛡️" },
   inspection: { label: "Kontrolli Teknik", icon: "🔧" },
-  license: { label: "Patenta", icon: "🪪" },
-  tax: { label: "Taksa Rrugore", icon: "💰" },
-  warranty: { label: "Garancia", icon: "📜" },
+  authorization: { label: "Leja/Autorizim", icon: "🪪" },
+  invoice: { label: "Faturë / Kupon", icon: "🧾" },
+  manual: { label: "Manual / të tjera", icon: "📘" },
+  license: { label: "Leja/Autorizim", icon: "🪪" },
+  tax: { label: "Faturë / Kupon", icon: "🧾" },
+  warranty: { label: "Manual / të tjera", icon: "📘" },
   other: { label: "Tjetër", icon: "📄" }
 };
 
-type Tab = "overview" | "documents" | "services" | "expenses";
+const DOCUMENT_KIND_OPTIONS: Array<{ value: DocumentKind; label: string }> = [
+  { value: "registration", label: "Regjistrimi" },
+  { value: "insurance", label: "Sigurimi" },
+  { value: "inspection", label: "Kontrolli teknik" },
+  { value: "authorization", label: "Leja/Autorizim" },
+  { value: "invoice", label: "Faturë / Kupon" },
+  { value: "manual", label: "Manual / të tjera" }
+];
+
+const SERVICE_KIND_OPTIONS: Array<{ value: ServiceKind; label: string }> = [
+  { value: "oil_change", label: "Ndërrim vaji + filtra" },
+  { value: "brakes", label: "Frenat (para/mbrapa)" },
+  { value: "tires", label: "Gomat (verë/dimër/all-season)" },
+  { value: "battery", label: "Bateria" },
+  { value: "antifreeze", label: "Antifriz" },
+  { value: "general", label: "Servis i përgjithshëm" },
+  { value: "other", label: "Tjera" }
+];
+
+const EXPENSE_KIND_OPTIONS: Array<{ value: ExpenseKind; label: string }> = [
+  { value: "fuel", label: "Karburant" },
+  { value: "service", label: "Servis/ mirëmbajtje" },
+  { value: "documents", label: "Dokumente (regjistrim/sigurim)" },
+  { value: "parts", label: "Pjesë (blerë veç)" },
+  { value: "parking_fines", label: "Parkim/Gjoba" },
+  { value: "other", label: "Tjera" }
+];
+
+const REPORT_MONTH_OPTIONS = [
+  "Janar",
+  "Shkurt",
+  "Mars",
+  "Prill",
+  "Maj",
+  "Qershor",
+  "Korrik",
+  "Gusht",
+  "Shtator",
+  "Tetor",
+  "Nëntor",
+  "Dhjetor"
+];
+
+function buildNotes(baseNotes: string, details: Array<[string, string | null | undefined]>) {
+  const cleanBase = baseNotes.trim();
+  const detailLines = details
+    .filter(([, value]) => Boolean(value && String(value).trim()))
+    .map(([label, value]) => `${label}: ${String(value).trim()}`);
+
+  if (cleanBase && detailLines.length === 0) return cleanBase;
+  if (!cleanBase && detailLines.length === 0) return null;
+
+  return [cleanBase, ...detailLines].filter(Boolean).join("\n");
+}
+
+function getYear(dateValue: string | null) {
+  if (!dateValue) return null;
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.getFullYear();
+}
+
+function getMonth(dateValue: string | null) {
+  if (!dateValue) return null;
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.getMonth() + 1;
+}
+
+function addOneYear(dateValue: string) {
+  const normalized = normalizeDateInput(dateValue);
+  if (!normalized) return "";
+
+  const [yearText, monthText, dayText] = normalized.split("-");
+  const year = Number(yearText);
+  const monthIndex = Number(monthText) - 1;
+  const day = Number(dayText);
+
+  const next = new Date(Date.UTC(year + 1, monthIndex, day));
+  if (Number.isNaN(next.getTime())) return "";
+
+  return next.toISOString().slice(0, 10);
+}
+
+function normalizeDateInput(value: string) {
+  const clean = value.trim();
+  if (!clean) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    return clean;
+  }
+
+  const parts = clean.split("/");
+  if (parts.length === 3) {
+    const [day, month, year] = parts.map((part) => part.trim());
+    if (day.length >= 1 && month.length >= 1 && year.length === 4) {
+      const dd = day.padStart(2, "0");
+      const mm = month.padStart(2, "0");
+      return `${year}-${mm}-${dd}`;
+    }
+  }
+
+  return "";
+}
+
+function formatIsoToDmy(value: string) {
+  const normalized = normalizeDateInput(value);
+  if (!normalized) return "";
+
+  const [year, month, day] = normalized.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+type Tab = "overview" | "documents" | "services" | "expenses" | "reports";
 
 function VehicleDashboardPage() {
   const { carId } = useParams<{ carId: string }>();
   const navigate = useNavigate();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
   const [data, setData] = useState<VehicleDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [carImage, setCarImage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const [documentFilter, setDocumentFilter] = useState<DocumentFilter>("all");
+  const [documentType, setDocumentType] = useState<DocumentKind>("registration");
+  const [documentTitle, setDocumentTitle] = useState("Regjistrimi");
+  const [documentIssuedOn, setDocumentIssuedOn] = useState(todayIso);
+  const [documentExpiresOn, setDocumentExpiresOn] = useState("");
+  const [documentNotes, setDocumentNotes] = useState("");
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [inspectionCompleted, setInspectionCompleted] = useState("po");
+
+  const [serviceType, setServiceType] = useState<ServiceKind>("oil_change");
+  const [serviceDate, setServiceDate] = useState(todayIso);
+  const [serviceMileage, setServiceMileage] = useState("");
+  const [serviceProvider, setServiceProvider] = useState("");
+  const [serviceCost, setServiceCost] = useState("");
+  const [serviceNotes, setServiceNotes] = useState("");
+  const [serviceNextDate, setServiceNextDate] = useState("");
+  const [serviceNextKm, setServiceNextKm] = useState("");
+  const [oilFilter, setOilFilter] = useState(false);
+  const [airFilter, setAirFilter] = useState(false);
+  const [fuelFilter, setFuelFilter] = useState(false);
+  const [cabinFilter, setCabinFilter] = useState(false);
+  const [tireSeason, setTireSeason] = useState("dimër");
+  const [tireBalancing, setTireBalancing] = useState("po");
+  const [brakeAxle, setBrakeAxle] = useState("para");
+  const [brakeDiscs, setBrakeDiscs] = useState("jo");
+  const [brakePads, setBrakePads] = useState("po");
+  const [batteryReplaced, setBatteryReplaced] = useState("po");
+  const [antifreezeWinterLevel, setAntifreezeWinterLevel] = useState("-20");
+  const [otherServiceCustomLabel, setOtherServiceCustomLabel] = useState("");
+
+  const [expenseDate, setExpenseDate] = useState(todayIso);
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState<ExpenseKind>("fuel");
+  const [expenseNotes, setExpenseNotes] = useState("");
+  const [expenseReceiptFile, setExpenseReceiptFile] = useState<File | null>(null);
+
+  const [reportYear, setReportYear] = useState<string>(String(currentYear));
+  const [reportMonth, setReportMonth] = useState<string>(String(currentMonth));
+  const [reportEventFilter, setReportEventFilter] = useState<ReportEventFilter>("expenses");
 
   useEffect(() => {
     let isMounted = true;
@@ -179,6 +367,392 @@ function VehicleDashboardPage() {
     if (!data) return null;
     return data.serviceRecords.find((s) => s.next_service_due_at);
   }, [data]);
+
+  const documentFilterStats = useMemo(() => {
+    if (!data) {
+      return { all: 0, expiring: 0, expired: 0 };
+    }
+
+    return data.documents.reduce(
+      (acc, document) => {
+        const status = getDocumentReportStatus(document.expires_on);
+        acc.all += 1;
+        if (status === "expiring") acc.expiring += 1;
+        if (status === "expired") acc.expired += 1;
+        return acc;
+      },
+      { all: 0, expiring: 0, expired: 0 }
+    );
+  }, [data]);
+
+  const filteredDocuments = useMemo(() => {
+    if (!data) return [];
+
+    return data.documents.filter((document) => {
+      const status = getDocumentReportStatus(document.expires_on);
+
+      if (documentFilter === "expiring") return status === "expiring";
+      if (documentFilter === "expired") return status === "expired";
+      return true;
+    });
+  }, [data, documentFilter]);
+
+  const availableReportYears = useMemo(() => {
+    if (!data) {
+      return [currentYear];
+    }
+
+    const years = new Set<number>();
+
+    data.expenses.forEach((expense) => {
+      const year = getYear(expense.expense_date);
+      if (year) years.add(year);
+    });
+
+    data.serviceRecords.forEach((service) => {
+      const year = getYear(service.service_date);
+      if (year) years.add(year);
+    });
+
+    data.documents.forEach((document) => {
+      const issueYear = getYear(document.issued_on);
+      const expiryYear = getYear(document.expires_on);
+      if (issueYear) years.add(issueYear);
+      if (expiryYear) years.add(expiryYear);
+    });
+
+    years.add(currentYear);
+
+    return Array.from(years).sort((a, b) => b - a);
+  }, [currentYear, data]);
+
+  const reportExpenses = useMemo(() => {
+    if (!data) return [];
+
+    return data.expenses.filter((expense) => {
+      const year = getYear(expense.expense_date);
+      const month = getMonth(expense.expense_date);
+      const yearMatch = reportYear === "all" || year === Number(reportYear);
+      const monthMatch = reportMonth === "all" || month === Number(reportMonth);
+      return yearMatch && monthMatch;
+    });
+  }, [data, reportMonth, reportYear]);
+
+  const reportServices = useMemo(() => {
+    if (!data) return [];
+
+    return data.serviceRecords.filter((service) => {
+      const year = getYear(service.service_date);
+      const month = getMonth(service.service_date);
+      const yearMatch = reportYear === "all" || year === Number(reportYear);
+      const monthMatch = reportMonth === "all" || month === Number(reportMonth);
+      return yearMatch && monthMatch;
+    });
+  }, [data, reportMonth, reportYear]);
+
+  const reportDocuments = useMemo(() => {
+    if (!data) return [];
+
+    return data.documents.filter((document) => {
+      const referenceDate = document.expires_on ?? document.issued_on;
+      const year = getYear(referenceDate);
+      const month = getMonth(referenceDate);
+      const yearMatch = reportYear === "all" || year === Number(reportYear);
+      const monthMatch = reportMonth === "all" || month === Number(reportMonth);
+      return yearMatch && monthMatch;
+    });
+  }, [data, reportMonth, reportYear]);
+
+  const reportHistoryRows = useMemo(() => {
+    const expenseRows = reportExpenses.map((expense) => ({
+      id: `expense-${expense.id}`,
+      date: expense.expense_date,
+      label: expense.category,
+      source: "Shpenzim",
+      amount: Number(expense.amount),
+      kind: "expenses" as const
+    }));
+
+    const serviceRows = reportServices.map((service) => ({
+      id: `service-${service.id}`,
+      date: service.service_date,
+      label: service.service_type,
+      source: "Servisim",
+      amount: Number(service.cost),
+      kind: "services" as const
+    }));
+
+    const documentRows = reportDocuments.map((document) => ({
+      id: `document-${document.id}`,
+      date: document.expires_on ?? document.issued_on ?? document.created_at,
+      label: DOCUMENT_TYPES[document.document_type]?.label ?? document.document_type,
+      source: "Dokument",
+      amount: null,
+      kind: "documents" as const
+    }));
+
+    return [...expenseRows, ...serviceRows, ...documentRows]
+      .filter((row) => row.kind === reportEventFilter)
+      .sort(
+      (left, right) => new Date(right.date).getTime() - new Date(left.date).getTime()
+    );
+  }, [reportDocuments, reportEventFilter, reportExpenses, reportServices]);
+
+  useEffect(() => {
+    const option = DOCUMENT_KIND_OPTIONS.find((item) => item.value === documentType);
+    if (option) {
+      setDocumentTitle(option.label);
+    }
+  }, [documentType]);
+
+  const uploadFileToStorage = async (file: File, folder: "documents" | "receipts") => {
+    if (!data) return null;
+
+    const safeFileName = file.name.replace(/\s+/g, "-").toLowerCase();
+    const path = `${data.car.owner_id}/${data.car.id}/${folder}/${Date.now()}-${safeFileName}`;
+
+    const { error: uploadError } = await supabase.storage.from("vehicle-files").upload(path, file, {
+      upsert: false
+    });
+
+    if (uploadError) {
+      throw new Error("Ngarkimi i skedarit dështoi. Kontrollo bucket-in 'vehicle-files'.");
+    }
+
+    const { data: publicData } = supabase.storage.from("vehicle-files").getPublicUrl(path);
+    return publicData.publicUrl;
+  };
+
+  const refreshData = async () => {
+    if (!carId) return;
+    const freshData = await getVehicleDashboardData(carId);
+    setData(freshData);
+  };
+
+  const handleCreateDocument = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!data) return;
+
+    setSaving(true);
+    setFormError("");
+
+    try {
+      const uploadedFileUrl = documentFile ? await uploadFileToStorage(documentFile, "documents") : null;
+      const normalizedIssuedDate = normalizeDateInput(documentIssuedOn);
+      const registrationExpiry = addOneYear(documentIssuedOn);
+
+      if (["registration", "insurance", "inspection"].includes(documentType) && !normalizedIssuedDate) {
+        throw new Error("Data nuk është valide. Përdor formatin dd/mm/yyyy ose yyyy-mm-dd.");
+      }
+
+      if (documentType === "registration" && !registrationExpiry) {
+        throw new Error("Data e skadimit nuk u llogarit. Kontrollo datën e regjistrimit.");
+      }
+
+      const issuedOn =
+        documentType === "registration" || documentType === "insurance" || documentType === "inspection"
+          ? normalizedIssuedDate || null
+          : null;
+
+      const expiresOn =
+        documentType === "registration"
+          ? registrationExpiry || null
+          : documentType === "manual" || documentType === "authorization"
+            ? documentExpiresOn || null
+            : null;
+
+      const mergedNotes =
+        documentType === "inspection"
+          ? buildNotes(documentNotes, [["Kontrolla teknike", inspectionCompleted]])
+          : documentNotes.trim() || null;
+
+      const status = getDocumentReportStatus(expiresOn) === "expired" ? "expired" : "active";
+
+      await createDocument({
+        owner_id: data.car.owner_id,
+        car_id: data.car.id,
+        document_type: documentType,
+        reference_number: documentTitle.trim() || null,
+        issued_on: issuedOn,
+        expires_on: expiresOn,
+        notes: mergedNotes,
+        file_url: uploadedFileUrl,
+        status
+      });
+
+      await refreshData();
+
+      setDocumentIssuedOn(todayIso);
+      setDocumentExpiresOn("");
+      setDocumentNotes("");
+      setDocumentFile(null);
+      setInspectionCompleted("po");
+    } catch (submitError) {
+      setFormError(submitError instanceof Error ? submitError.message : "Ruajtja e dokumentit dështoi.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreateService = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!data) return;
+
+    setSaving(true);
+    setFormError("");
+
+    try {
+      const selectedServiceLabel = SERVICE_KIND_OPTIONS.find((option) => option.value === serviceType)?.label ?? "Servis";
+      const serviceLabel = serviceType === "other" ? otherServiceCustomLabel.trim() || "Tjera" : selectedServiceLabel;
+
+      const details: Array<[string, string | null]> = [];
+
+      if (serviceType === "oil_change") {
+        details.push([
+          "Filtrat",
+          [
+            oilFilter ? "vaj" : "",
+            airFilter ? "ajër" : "",
+            fuelFilter ? "naftë" : "",
+            cabinFilter ? "kabinë" : ""
+          ]
+            .filter(Boolean)
+            .join(", ") || null
+        ]);
+      }
+
+      if (serviceType === "tires") {
+        details.push(["Sezoni", tireSeason]);
+        details.push(["Balancim", tireBalancing]);
+      }
+
+      if (serviceType === "brakes") {
+        details.push(["Aksi", brakeAxle]);
+        details.push(["Disqe", brakeDiscs]);
+        details.push(["Pllaka", brakePads]);
+      }
+
+      if (serviceType === "battery") {
+        details.push(["Bateri e re", batteryReplaced]);
+      }
+
+      if (serviceType === "antifreeze") {
+        details.push(["Antifriz dimri", antifreezeWinterLevel]);
+      }
+
+      if (serviceType === "other") {
+        details.push(["Plani KM", serviceNextKm || null]);
+      }
+
+      await createServiceRecord({
+        owner_id: data.car.owner_id,
+        car_id: data.car.id,
+        service_date: serviceDate,
+        service_type: serviceLabel,
+        provider: serviceType === "other" ? serviceProvider.trim() || null : null,
+        cost: serviceType === "other" ? (serviceCost ? Number(serviceCost) : 0) : 0,
+        mileage: serviceType === "oil_change" || serviceType === "other" ? (serviceMileage ? Number(serviceMileage) : null) : null,
+        notes: buildNotes(serviceNotes, details),
+        next_service_due_at: serviceType === "other" ? serviceNextDate || null : null
+      });
+
+      await refreshData();
+
+      setServiceDate(todayIso);
+      setServiceMileage("");
+      setServiceProvider("");
+      setServiceCost("");
+      setServiceNotes("");
+      setServiceNextDate("");
+      setServiceNextKm("");
+      setOilFilter(false);
+      setAirFilter(false);
+      setFuelFilter(false);
+      setCabinFilter(false);
+      setBatteryReplaced("po");
+      setAntifreezeWinterLevel("-20");
+      setOtherServiceCustomLabel("");
+    } catch (submitError) {
+      setFormError(submitError instanceof Error ? submitError.message : "Ruajtja e servisimit dështoi.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreateExpense = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!data) return;
+
+    setSaving(true);
+    setFormError("");
+
+    try {
+      const categoryLabel = EXPENSE_KIND_OPTIONS.find((option) => option.value === expenseCategory)?.label ?? "Tjera";
+      const uploadedReceipt = expenseReceiptFile ? await uploadFileToStorage(expenseReceiptFile, "receipts") : null;
+
+      const notes = buildNotes(expenseNotes, [
+        ["Kupon", uploadedReceipt || null]
+      ]);
+
+      await createExpense({
+        owner_id: data.car.owner_id,
+        car_id: data.car.id,
+        expense_date: expenseDate,
+        category: categoryLabel,
+        amount: Number(expenseAmount),
+        notes,
+        vendor: null
+      });
+
+      await refreshData();
+
+      setExpenseDate(todayIso);
+      setExpenseAmount("");
+      setExpenseNotes("");
+      setExpenseReceiptFile(null);
+    } catch (submitError) {
+      setFormError(submitError instanceof Error ? submitError.message : "Ruajtja e shpenzimit dështoi.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditService = async (service: ServiceRecordRow) => {
+    const nextType = window.prompt("Lloji i servisimit", service.service_type) ?? service.service_type;
+    const nextDate = window.prompt("Data (YYYY-MM-DD)", service.service_date) ?? service.service_date;
+    const nextNotes = window.prompt("Shënime", service.notes ?? "") ?? service.notes ?? "";
+
+    setFormError("");
+
+    try {
+      await updateServiceRecord(service.id, {
+        service_type: nextType.trim() || service.service_type,
+        service_date: nextDate.trim() || service.service_date,
+        notes: nextNotes.trim() || null
+      });
+
+      await refreshData();
+    } catch (editError) {
+      setFormError(editError instanceof Error ? editError.message : "Editimi i servisimit dështoi.");
+    }
+  };
+
+  const handleDeleteService = async (service: ServiceRecordRow) => {
+    const confirmed = window.confirm("A je i sigurt që don me fshi këtë servisim?");
+    if (!confirmed) return;
+
+    setFormError("");
+
+    try {
+      await deleteServiceRecord(service.id);
+      await refreshData();
+    } catch (deleteError) {
+      setFormError(deleteError instanceof Error ? deleteError.message : "Fshirja e servisimit dështoi.");
+    }
+  };
 
   if (loading) {
     return (
@@ -324,12 +898,19 @@ function VehicleDashboardPage() {
               { key: "overview" as Tab, label: "Përmbledhje", icon: "📊" },
               { key: "documents" as Tab, label: "Dokumente", icon: "📋" },
               { key: "services" as Tab, label: "Servisime", icon: "🔧" },
-              { key: "expenses" as Tab, label: "Shpenzime", icon: "💰" }
+              { key: "expenses" as Tab, label: "Shpenzime", icon: "💰" },
+              { key: "reports" as Tab, label: "Raporti", icon: "📈" }
             ].map((tab) => (
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => {
+                  setActiveTab(tab.key);
+                  if (tab.key === "reports") {
+                    setReportYear(String(currentYear));
+                    setReportMonth(String(currentMonth));
+                  }
+                }}
                 className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
                   activeTab === tab.key
                     ? "bg-mint/10 text-mint"
@@ -420,9 +1001,9 @@ function VehicleDashboardPage() {
               />
               <StatCard
                 icon="📅"
-                label="Servisi Tjetër"
+                label="Planifikime / Reminder"
                 value={nextService?.next_service_due_at ? formatDate(nextService.next_service_due_at) : "—"}
-                sublabel={nextService?.service_type || "Pa planifikim"}
+                sublabel={nextService?.service_type || "Servisi tjetër"}
                 color="slate"
               />
             </div>
@@ -446,7 +1027,9 @@ function VehicleDashboardPage() {
                     <DocumentRow key={doc.id} document={doc} />
                   ))}
                   {documents.length === 0 && (
-                    <EmptyState message="Asnjë dokument i regjistruar" icon="📋" />
+                    <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
+                      Nuk ka dokumente ende.
+                    </div>
                   )}
                 </div>
               </section>
@@ -468,7 +1051,9 @@ function VehicleDashboardPage() {
                     <ServiceRow key={service.id} service={service} />
                   ))}
                   {serviceRecords.length === 0 && (
-                    <EmptyState message="Asnjë servisim i regjistruar" icon="🔧" />
+                    <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
+                      Nuk ka servisime ende.
+                    </div>
                   )}
                 </div>
               </section>
@@ -481,26 +1066,201 @@ function VehicleDashboardPage() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="font-display text-xl font-bold">Dokumentet e Veturës</h2>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className="flex items-center gap-2 rounded-xl bg-mint px-4 py-2.5 text-sm font-bold text-deep transition hover:bg-mint/90"
+                onClick={() => setDocumentFilter("all")}
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                  documentFilter === "all" ? "bg-mint/15 text-mint" : "bg-white/5 text-slate-300"
+                }`}
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Shto Dokument
+                Të gjitha ({documentFilterStats.all})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDocumentFilter("expiring")}
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                  documentFilter === "expiring" ? "bg-amber-500/20 text-amber-300" : "bg-white/5 text-slate-300"
+                }`}
+              >
+                Po skadojnë ({documentFilterStats.expiring})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDocumentFilter("expired")}
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                  documentFilter === "expired" ? "bg-red-500/20 text-red-300" : "bg-white/5 text-slate-300"
+                }`}
+              >
+                Skaduara ({documentFilterStats.expired})
               </button>
             </div>
 
-            {documents.length === 0 ? (
-              <EmptyState
-                message="Filloni duke shtuar dokumentet e rëndësishme të veturës suaj"
-                icon="📋"
-                action="Shto Dokumentin e Parë"
-              />
+            <form onSubmit={handleCreateDocument} className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/50 p-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-sm text-slate-300">
+                    Lloji i dokumentit
+                    <select
+                      value={documentType}
+                      onChange={(event) => setDocumentType(event.target.value as DocumentKind)}
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                    >
+                      {DOCUMENT_KIND_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {documentType !== "invoice" && documentType !== "inspection" && (
+                    <label className="text-sm text-slate-300">
+                      Titulli
+                      <input
+                        value={documentTitle}
+                        onChange={(event) => setDocumentTitle(event.target.value)}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                        required
+                      />
+                    </label>
+                  )}
+
+                  {documentType === "registration" && (
+                    <>
+                      <label className="text-sm text-slate-300">
+                        Data e regjistrimit
+                        <input
+                          type="text"
+                          value={documentIssuedOn}
+                          onChange={(event) => setDocumentIssuedOn(event.target.value)}
+                          required
+                          placeholder="dd/mm/yyyy"
+                          className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                        />
+                        <p className="mt-1 text-xs text-slate-400">Shkruaj formatin: ditë/muaj/vit (p.sh. 03/03/2026)</p>
+                      </label>
+
+                      <label className="text-sm text-slate-300">
+                        Data e skadimit (+1 vit automatik)
+                        <input
+                          type="text"
+                          value={formatIsoToDmy(addOneYear(documentIssuedOn))}
+                          readOnly
+                          className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-slate-300"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {documentType === "insurance" && (
+                    <label className="text-sm text-slate-300">
+                      Data e sigurimit
+                      <input
+                        type="date"
+                        value={documentIssuedOn}
+                        onChange={(event) => setDocumentIssuedOn(event.target.value)}
+                        required
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                      />
+                    </label>
+                  )}
+
+                  {documentType === "inspection" && (
+                    <>
+                      <label className="text-sm text-slate-300">
+                        A u bë kontrolla teknike?
+                        <select
+                          value={inspectionCompleted}
+                          onChange={(event) => setInspectionCompleted(event.target.value)}
+                          className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                        >
+                          <option value="po">Po</option>
+                          <option value="jo">Jo</option>
+                        </select>
+                      </label>
+
+                      <label className="text-sm text-slate-300">
+                        Data e kontrollës teknike
+                        <input
+                          type="date"
+                          value={documentIssuedOn}
+                          onChange={(event) => setDocumentIssuedOn(event.target.value)}
+                          required
+                          className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  {(documentType === "manual" || documentType === "authorization") && (
+                    <>
+                      <label className="text-sm text-slate-300">
+                        Data e lëshimit
+                        <input
+                          type="date"
+                          value={documentIssuedOn}
+                          onChange={(event) => setDocumentIssuedOn(event.target.value)}
+                          className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                        />
+                      </label>
+
+                      <label className="text-sm text-slate-300">
+                        Data e skadimit (opsionale)
+                        <input
+                          type="date"
+                          value={documentExpiresOn}
+                          onChange={(event) => setDocumentExpiresOn(event.target.value)}
+                          className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                        />
+                      </label>
+                    </>
+                  )}
+                </div>
+
+                {(documentType === "insurance" || documentType === "inspection" || documentType === "invoice" || documentType === "manual" || documentType === "authorization") && (
+                  <label className="block text-sm text-slate-300">
+                    Koment / shënime
+                    <textarea
+                      value={documentNotes}
+                      onChange={(event) => setDocumentNotes(event.target.value)}
+                      rows={3}
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                    />
+                  </label>
+                )}
+
+                {(documentType === "invoice" || documentType === "manual" || documentType === "authorization" || documentType === "registration" || documentType === "insurance") && (
+                  <label className="block text-sm text-slate-300">
+                    Upload file (PDF/foto)
+                    <input
+                      type="file"
+                      accept=".pdf,image/*"
+                      onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
+                      className="mt-1 block w-full text-sm text-slate-300"
+                    />
+                  </label>
+                )}
+
+                {formError && <p className="text-sm text-red-300">{formError}</p>}
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-xl bg-mint px-4 py-2 text-sm font-bold text-deep transition hover:bg-mint/90 disabled:opacity-60"
+                >
+                  {saving ? "Duke ruajtur..." : "Ruaj dokumentin"}
+                </button>
+              </form>
+
+            {filteredDocuments.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-6 text-sm text-slate-400">
+                Nuk ka dokumente për këtë filtër.
+              </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {documents.map((doc) => (
+                {filteredDocuments.map((doc) => (
                   <DocumentCard key={doc.id} document={doc} />
                 ))}
               </div>
@@ -511,29 +1271,258 @@ function VehicleDashboardPage() {
         {/* Services tab */}
         {activeTab === "services" && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-xl font-bold">Historia e Servisimeve</h2>
-              <button
-                type="button"
-                className="flex items-center gap-2 rounded-xl bg-mint px-4 py-2.5 text-sm font-bold text-deep transition hover:bg-mint/90"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Shto Servisim
-              </button>
-            </div>
+            <h2 className="font-display text-xl font-bold">Historia e Servisimeve</h2>
+
+            <form onSubmit={handleCreateService} className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/50 p-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-sm text-slate-300">
+                    Lloji i servisimit
+                    <select
+                      value={serviceType}
+                      onChange={(event) => setServiceType(event.target.value as ServiceKind)}
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                    >
+                      {SERVICE_KIND_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {serviceType === "other" && (
+                    <label className="text-sm text-slate-300">
+                      Lloj custom
+                      <input
+                        value={otherServiceCustomLabel}
+                        onChange={(event) => setOtherServiceCustomLabel(event.target.value)}
+                        required
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                      />
+                    </label>
+                  )}
+
+                  <label className="text-sm text-slate-300">
+                    Data
+                    <input
+                      type="date"
+                      value={serviceDate}
+                      onChange={(event) => setServiceDate(event.target.value)}
+                      required
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                    />
+                  </label>
+
+                  {(serviceType === "oil_change" || serviceType === "other") && (
+                    <label className="text-sm text-slate-300">
+                      KM në atë moment
+                      <input
+                        type="number"
+                        min={0}
+                        value={serviceMileage}
+                        onChange={(event) => setServiceMileage(event.target.value)}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                      />
+                    </label>
+                  )}
+
+                  {serviceType === "other" && (
+                    <>
+                      <label className="text-sm text-slate-300">
+                        Punëtori / servisi (opsionale)
+                        <input
+                          value={serviceProvider}
+                          onChange={(event) => setServiceProvider(event.target.value)}
+                          className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                        />
+                      </label>
+
+                      <label className="text-sm text-slate-300">
+                        Kosto (€) (opsionale)
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={serviceCost}
+                          onChange={(event) => setServiceCost(event.target.value)}
+                          className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                        />
+                      </label>
+                    </>
+                  )}
+                </div>
+
+                {serviceType === "oil_change" && (
+                  <div className="grid gap-3 rounded-xl border border-white/10 bg-deep/40 p-4">
+                    <div>
+                      <p className="text-sm text-slate-300">Filtrat</p>
+                      <div className="mt-2 flex flex-wrap gap-3 text-sm text-slate-300">
+                        <label><input type="checkbox" checked={oilFilter} onChange={(event) => setOilFilter(event.target.checked)} /> vaj</label>
+                        <label><input type="checkbox" checked={airFilter} onChange={(event) => setAirFilter(event.target.checked)} /> ajër</label>
+                        <label><input type="checkbox" checked={fuelFilter} onChange={(event) => setFuelFilter(event.target.checked)} /> naftë</label>
+                        <label><input type="checkbox" checked={cabinFilter} onChange={(event) => setCabinFilter(event.target.checked)} /> kabinë</label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {serviceType === "tires" && (
+                  <div className="grid gap-3 rounded-xl border border-white/10 bg-deep/40 p-4 md:grid-cols-2">
+                    <label className="text-sm text-slate-300">
+                      Sezoni
+                      <select
+                        value={tireSeason}
+                        onChange={(event) => setTireSeason(event.target.value)}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                      >
+                        <option value="verë">Verë</option>
+                        <option value="dimër">Dimër</option>
+                        <option value="all-season">All-season</option>
+                      </select>
+                    </label>
+                    <label className="text-sm text-slate-300">
+                      Balancim
+                      <select
+                        value={tireBalancing}
+                        onChange={(event) => setTireBalancing(event.target.value)}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                      >
+                        <option value="po">Po</option>
+                        <option value="jo">Jo</option>
+                      </select>
+                    </label>
+                  </div>
+                )}
+
+                {serviceType === "brakes" && (
+                  <div className="grid gap-3 rounded-xl border border-white/10 bg-deep/40 p-4 md:grid-cols-3">
+                    <label className="text-sm text-slate-300">
+                      Para / mbrapa
+                      <select
+                        value={brakeAxle}
+                        onChange={(event) => setBrakeAxle(event.target.value)}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                      >
+                        <option value="para">Para</option>
+                        <option value="mbrapa">Mbrapa</option>
+                      </select>
+                    </label>
+                    <label className="text-sm text-slate-300">
+                      Disqe
+                      <select
+                        value={brakeDiscs}
+                        onChange={(event) => setBrakeDiscs(event.target.value)}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                      >
+                        <option value="po">Po</option>
+                        <option value="jo">Jo</option>
+                      </select>
+                    </label>
+                    <label className="text-sm text-slate-300">
+                      Pllaka
+                      <select
+                        value={brakePads}
+                        onChange={(event) => setBrakePads(event.target.value)}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                      >
+                        <option value="po">Po</option>
+                        <option value="jo">Jo</option>
+                      </select>
+                    </label>
+                  </div>
+                )}
+
+                {serviceType === "battery" && (
+                  <div className="rounded-xl border border-white/10 bg-deep/40 p-4">
+                    <label className="text-sm text-slate-300">
+                      A është vendosur e re?
+                      <select
+                        value={batteryReplaced}
+                        onChange={(event) => setBatteryReplaced(event.target.value)}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                      >
+                        <option value="po">Po</option>
+                        <option value="jo">Jo</option>
+                      </select>
+                    </label>
+                  </div>
+                )}
+
+                {serviceType === "antifreeze" && (
+                  <div className="rounded-xl border border-white/10 bg-deep/40 p-4">
+                    <label className="text-sm text-slate-300">
+                      Antifrizi në dimër
+                      <select
+                        value={antifreezeWinterLevel}
+                        onChange={(event) => setAntifreezeWinterLevel(event.target.value)}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                      >
+                        <option value="-20">-20</option>
+                        <option value="-30">-30</option>
+                        <option value="-40">-40</option>
+                      </select>
+                    </label>
+                  </div>
+                )}
+
+                {serviceType === "other" && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="text-sm text-slate-300">
+                      Ndërrim vajit pas X km (opsionale)
+                      <input
+                        type="number"
+                        min={0}
+                        value={serviceNextKm}
+                        onChange={(event) => setServiceNextKm(event.target.value)}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                      />
+                    </label>
+                    <label className="text-sm text-slate-300">
+                      Servisi tjetër në datë (opsionale)
+                      <input
+                        type="date"
+                        value={serviceNextDate}
+                        onChange={(event) => setServiceNextDate(event.target.value)}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                      />
+                    </label>
+                  </div>
+                )}
+
+                <label className="block text-sm text-slate-300">
+                  Shënime
+                  <textarea
+                    rows={3}
+                    value={serviceNotes}
+                    onChange={(event) => setServiceNotes(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                  />
+                </label>
+
+                {formError && <p className="text-sm text-red-300">{formError}</p>}
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-xl bg-mint px-4 py-2 text-sm font-bold text-deep transition hover:bg-mint/90 disabled:opacity-60"
+                >
+                  {saving ? "Duke ruajtur..." : "Ruaj servisimin"}
+                </button>
+              </form>
 
             {serviceRecords.length === 0 ? (
-              <EmptyState
-                message="Regjistroni mirëmbajtjen dhe servisimet e veturës"
-                icon="🔧"
-                action="Shto Servisimin e Parë"
-              />
+              <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-6 text-sm text-slate-400">
+                Nuk ka servisime ende.
+              </div>
             ) : (
               <div className="space-y-4">
                 {serviceRecords.map((service) => (
-                  <ServiceCard key={service.id} service={service} />
+                  <ServiceCard
+                    key={service.id}
+                    service={service}
+                    onEdit={handleEditService}
+                    onDelete={handleDeleteService}
+                  />
                 ))}
               </div>
             )}
@@ -550,23 +1539,83 @@ function VehicleDashboardPage() {
                   Totali: <span className="font-semibold text-mint">{formatCurrency(totalExpenses)}</span>
                 </p>
               </div>
-              <button
-                type="button"
-                className="flex items-center gap-2 rounded-xl bg-mint px-4 py-2.5 text-sm font-bold text-deep transition hover:bg-mint/90"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Shto Shpenzim
-              </button>
             </div>
 
+            <form onSubmit={handleCreateExpense} className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/50 p-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-sm text-slate-300">
+                    Data
+                    <input
+                      type="date"
+                      value={expenseDate}
+                      onChange={(event) => setExpenseDate(event.target.value)}
+                      required
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-300">
+                    Shuma (€)
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={expenseAmount}
+                      onChange={(event) => setExpenseAmount(event.target.value)}
+                      required
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-300">
+                    Kategoria
+                    <select
+                      value={expenseCategory}
+                      onChange={(event) => setExpenseCategory(event.target.value as ExpenseKind)}
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                    >
+                      {EXPENSE_KIND_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <label className="block text-sm text-slate-300">
+                  Shënime
+                  <textarea
+                    rows={3}
+                    value={expenseNotes}
+                    onChange={(event) => setExpenseNotes(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                  />
+                </label>
+
+                <label className="block text-sm text-slate-300">
+                  Foto e kuponit (opsionale)
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(event) => setExpenseReceiptFile(event.target.files?.[0] ?? null)}
+                    className="mt-1 block w-full text-sm text-slate-300"
+                  />
+                </label>
+
+                {formError && <p className="text-sm text-red-300">{formError}</p>}
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-xl bg-mint px-4 py-2 text-sm font-bold text-deep transition hover:bg-mint/90 disabled:opacity-60"
+                >
+                  {saving ? "Duke ruajtur..." : "Ruaj shpenzimin"}
+                </button>
+              </form>
+
             {expenses.length === 0 ? (
-              <EmptyState
-                message="Mbani gjurmët e shpenzimeve të veturës"
-                icon="💰"
-                action="Shto Shpenzimin e Parë"
-              />
+              <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-6 text-sm text-slate-400">
+                Nuk ka shpenzime ende.
+              </div>
             ) : (
               <div className="space-y-3">
                 {expenses.map((expense) => (
@@ -574,6 +1623,107 @@ function VehicleDashboardPage() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === "reports" && (
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+              <label className="text-sm text-slate-300">
+                Viti
+                <select
+                  value={reportYear}
+                  onChange={(event) => setReportYear(event.target.value)}
+                  className="mt-1 w-40 rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                >
+                  <option value="all">Të gjitha</option>
+                  {availableReportYears.map((year) => (
+                    <option key={year} value={String(year)}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm text-slate-300">
+                Muaji
+                <select
+                  value={reportMonth}
+                  onChange={(event) => setReportMonth(event.target.value)}
+                  className="mt-1 w-44 rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
+                >
+                  <option value="all">Të gjitha</option>
+                  {REPORT_MONTH_OPTIONS.map((monthLabel, index) => (
+                    <option key={monthLabel} value={String(index + 1)}>
+                      {monthLabel}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="flex flex-wrap gap-2 pb-0.5">
+                <button
+                  type="button"
+                  onClick={() => setReportEventFilter("documents")}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                    reportEventFilter === "documents" ? "bg-mint/15 text-mint" : "bg-white/5 text-slate-300"
+                  }`}
+                >
+                  Dokumente
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReportEventFilter("services")}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                    reportEventFilter === "services" ? "bg-mint/15 text-mint" : "bg-white/5 text-slate-300"
+                  }`}
+                >
+                  Servisime
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReportEventFilter("expenses")}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                    reportEventFilter === "expenses" ? "bg-mint/15 text-mint" : "bg-white/5 text-slate-300"
+                  }`}
+                >
+                  Shpenzime
+                </button>
+              </div>
+            </div>
+
+            <section className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900/50">
+              <div className="border-b border-white/10 px-4 py-3">
+                <h3 className="font-display text-lg font-bold">Historia e plotë</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-white/5 text-slate-300">
+                    <tr>
+                      <th className="px-4 py-3">Data</th>
+                      <th className="px-4 py-3">Lloji</th>
+                      <th className="px-4 py-3">Përshkrimi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportHistoryRows.map((row) => (
+                      <tr key={row.id} className="border-t border-white/5">
+                        <td className="px-4 py-3 text-slate-300">{formatDate(row.date)}</td>
+                        <td className="px-4 py-3 text-slate-300">{row.source}</td>
+                        <td className="px-4 py-3 text-white">{row.label}</td>
+                      </tr>
+                    ))}
+                    {reportHistoryRows.length === 0 && (
+                      <tr>
+                        <td className="px-4 py-6 text-center text-slate-400" colSpan={3}>
+                          Nuk ka histori për filtrin aktual.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </div>
         )}
       </div>
@@ -647,6 +1797,7 @@ function DocumentRow({ document }: { document: DocumentRow }) {
 function DocumentCard({ document }: { document: DocumentRow }) {
   const status = getDocumentStatus(document.expires_on);
   const docType = DOCUMENT_TYPES[document.document_type] || DOCUMENT_TYPES.other;
+  const reportStatus = getDocumentReportStatus(document.expires_on);
 
   const bgColors = {
     red: "from-red-500/10 to-red-900/5 border-red-500/20",
@@ -674,11 +1825,17 @@ function DocumentCard({ document }: { document: DocumentRow }) {
           {status.label}
         </span>
       </div>
-      <h4 className="mt-4 font-display text-lg font-bold">{docType.label}</h4>
+      <h4 className="mt-4 font-display text-lg font-bold">{document.reference_number || docType.label}</h4>
       <div className="mt-3 space-y-1 text-sm text-slate-400">
+        <p>Lloji: {docType.label}</p>
         <p>Skadon: {formatDate(document.expires_on)}</p>
+        <p>Statusi: {reportStatus === "expired" ? "Skaduar" : reportStatus === "expiring" ? "Po skadon" : "OK"}</p>
         {document.issuer && <p>Lëshuar nga: {document.issuer}</p>}
-        {document.reference_number && <p>Ref: {document.reference_number}</p>}
+        {document.file_url && (
+          <a href={document.file_url} target="_blank" rel="noreferrer" className="text-mint hover:underline">
+            Hap skedarin
+          </a>
+        )}
       </div>
     </div>
   );
@@ -699,7 +1856,15 @@ function ServiceRow({ service }: { service: ServiceRecordRow }) {
   );
 }
 
-function ServiceCard({ service }: { service: ServiceRecordRow }) {
+function ServiceCard({
+  service,
+  onEdit,
+  onDelete
+}: {
+  service: ServiceRecordRow;
+  onEdit: (service: ServiceRecordRow) => void;
+  onDelete: (service: ServiceRecordRow) => void;
+}) {
   return (
     <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-5">
       <div className="flex items-start justify-between">
@@ -707,7 +1872,22 @@ function ServiceCard({ service }: { service: ServiceRecordRow }) {
           <h4 className="font-display text-lg font-bold">{service.service_type}</h4>
           <p className="text-sm text-slate-400">{formatDate(service.service_date)}</p>
         </div>
-        <span className="text-xl font-bold text-mint">{formatCurrency(service.cost)}</span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onEdit(service)}
+            className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
+          >
+            Editoje
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(service)}
+            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/20"
+          >
+            Fshije
+          </button>
+        </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2 text-xs">
         {service.provider && (
@@ -745,31 +1925,6 @@ function ExpenseCard({ expense }: { expense: ExpenseRow }) {
         </div>
       </div>
       <span className="text-lg font-bold text-mint">{formatCurrency(expense.amount)}</span>
-    </div>
-  );
-}
-
-function EmptyState({
-  message,
-  icon,
-  action
-}: {
-  message: string;
-  icon: string;
-  action?: string;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/5 py-12 text-center">
-      <span className="text-4xl">{icon}</span>
-      <p className="mt-4 text-slate-400">{message}</p>
-      {action && (
-        <button
-          type="button"
-          className="mt-4 rounded-xl bg-mint/10 px-4 py-2 text-sm font-semibold text-mint transition hover:bg-mint/20"
-        >
-          {action}
-        </button>
-      )}
     </div>
   );
 }

@@ -363,10 +363,21 @@ async function fetchCarsXeImage(
   }
 
   try {
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      return fetchCarsXeImageDirect(make, model, year, color);
+    }
+
     const { data, error } = await supabase.functions.invoke<{
       imageUrl?: string | null;
       provider?: string | null;
     }>("vehicle-image", {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`
+      },
       body: {
         make,
         model,

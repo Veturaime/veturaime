@@ -629,6 +629,49 @@ export async function createServiceRecord(
   return data as ServiceRecordRow;
 }
 
+export async function updateServiceRecord(
+  recordId: string,
+  updates: Database["public"]["Tables"]["service_records"]["Update"]
+): Promise<ServiceRecordRow> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { data, error } = await supabase
+    .from("service_records")
+    .update(updates)
+    .eq("id", recordId)
+    .eq("owner_id", userId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as ServiceRecordRow;
+}
+
+export async function deleteServiceRecord(recordId: string): Promise<void> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { error } = await supabase
+    .from("service_records")
+    .delete()
+    .eq("id", recordId)
+    .eq("owner_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 // =====================================================
 // EXPENSES
 // =====================================================

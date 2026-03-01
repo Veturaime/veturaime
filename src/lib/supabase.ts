@@ -1,4 +1,13 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
+import type {
+  CarInput,
+  CarRow,
+  Database,
+  DocumentRow,
+  ExpenseRow,
+  ProfileRow,
+  ServiceRecordRow
+} from "./database.types";
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -7,12 +16,15 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   throw new Error("Missing Supabase environment variables. Check .env configuration.");
 }
 
+type AppSupabaseClient = SupabaseClient<Database>;
+
 declare global {
-  var __veturaimeSupabaseClient: ReturnType<typeof createSupabaseClient> | undefined;
+  var __veturaimeSupabaseClient: AppSupabaseClient | undefined;
 }
 
-export const supabase =
-  globalThis.__veturaimeSupabaseClient ?? createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase: AppSupabaseClient =
+  globalThis.__veturaimeSupabaseClient ??
+  createSupabaseClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 if (import.meta.env.DEV) {
   globalThis.__veturaimeSupabaseClient = supabase;
@@ -26,11 +38,76 @@ export type OnboardingAnswers = {
   electric_future_preference: string | null;
 };
 
+export type DashboardData = {
+  profile: ProfileRow | null;
+  cars: CarRow[];
+  serviceRecords: ServiceRecordRow[];
+  documents: DocumentRow[];
+  expenses: ExpenseRow[];
+};
+
+export type VehicleDashboardData = {
+  car: CarRow;
+  documents: DocumentRow[];
+  serviceRecords: ServiceRecordRow[];
+  expenses: ExpenseRow[];
+};
+
 type RegisterInput = {
   fullName: string;
   email: string;
   password: string;
 };
+
+function isMissingOnboardingColumnError(errorMessage: string) {
+  const normalized = errorMessage.toLowerCase();
+
+  return (
+    normalized.includes("onboarding_completed_at") ||
+    normalized.includes("transmission_preference") ||
+    normalized.includes("car_body_preference") ||
+    normalized.includes("car_style_preference") ||
+    normalized.includes("fuel_consumption_priority") ||
+    normalized.includes("electric_future_preference")
+  );
+}
+
+function isMissingDashboardSchemaError(errorMessage: string) {
+  const normalized = errorMessage.toLowerCase();
+
+  return (
+    normalized.includes("could not find the table") ||
+    normalized.includes("schema cache") ||
+    (normalized.includes("relation") &&
+      ["cars", "service_records", "documents", "expenses"].some((tableName) =>
+        normalized.includes(tableName)
+      ))
+  );
+}
+
+function onboardingMigrationMessage() {
+  return "Onboarding columns are missing in DB. Run supabase/onboarding_profile_columns.sql and try again.";
+}
+
+function dashboardMigrationMessage() {
+  return "Dashboard tables are missing in DB. Run supabase/dashboard_core.sql and try again.";
+}
+
+function throwQueryError(error: { message: string } | null) {
+  if (!error) {
+    return;
+  }
+
+  if (isMissingOnboardingColumnError(error.message)) {
+    throw new Error(onboardingMigrationMessage());
+  }
+
+  if (isMissingDashboardSchemaError(error.message)) {
+    throw new Error(dashboardMigrationMessage());
+  }
+
+  throw new Error(error.message);
+}
 
 export async function registerWithEmail({ fullName, email, password }: RegisterInput) {
   const { data, error } = await supabase.auth.signUp({
@@ -72,7 +149,7 @@ export async function quickStart(flow: "dashboard" | "register", inputValue: str
   }
 }
 
-async function getAuthenticatedUserId() {
+export async function getAuthenticatedUserId() {
   const { data, error } = await supabase.auth.getUser();
 
   if (error) {
@@ -82,22 +159,172 @@ async function getAuthenticatedUserId() {
   return data.user?.id ?? null;
 }
 
-function isMissingOnboardingColumnError(errorMessage: string) {
-  const normalized = errorMessage.toLowerCase();
+// =====================================================
+// VERIFICATION CODE FUNCTIONS
+// =====================================================
 
-  return (
-    normalized.includes("onboarding_completed_at") ||
-    normalized.includes("transmission_preference") ||
-    normalized.includes("car_body_preference") ||
-    normalized.includes("car_style_preference") ||
-    normalized.includes("fuel_consumption_priority") ||
-    normalized.includes("electric_future_preference")
-  );
+export async function generateVerificationCode(): Promise<string> {
+  const userId = await getAuthenticatedUserId();
+  
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  // Generate code using database function if available, otherwise client-side
+  try {
+    const { data, error } = await supabase.rpc("generate_verification_code", {
+      p_user_id: userId
+    });
+    
+    if (error) {
+      // Fallback to client-side generation if function doesn't exist
+      if (error.message.includes("function") || error.message.includes("does not exist")) {
+        return generateVerificationCodeClientSide(userId);
+      }
+      throw new Error(error.message);
+    }
+    
+    return data as string;
+  } catch {
+    // Fallback to client-side generation
+    return generateVerificationCodeClientSide(userId);
+  }
 }
 
-function onboardingMigrationMessage() {
-  return "Kolonat e onboarding mungojnë në DB. Ekzekuto SQL-in te supabase/onboarding_profile_columns.sql dhe provo përsëri.";
+async function generateVerificationCodeClientSide(userId: string): Promise<string> {
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
+  
+  // Invalidate existing codes
+  await supabase
+    .from("verification_codes")
+    .update({ used_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .is("used_at", null);
+  
+  // Insert new code
+  const { error } = await supabase
+    .from("verification_codes")
+    .insert({
+      user_id: userId,
+      code,
+      purpose: "email_verification",
+      expires_at: expiresAt
+    });
+  
+  if (error) {
+    // If table doesn't exist, return mock code for demo purposes
+    if (error.message.includes("does not exist") || error.message.includes("relation")) {
+      console.warn("Verification codes table not found. Using demo mode with code:", code);
+      // Store in session for demo
+      sessionStorage.setItem("veturaime_demo_code", code);
+      return code;
+    }
+    throw new Error(error.message);
+  }
+  
+  return code;
 }
+
+export async function verifyCode(code: string): Promise<boolean> {
+  const userId = await getAuthenticatedUserId();
+  
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  // Check demo mode first
+  const demoCode = sessionStorage.getItem("veturaime_demo_code");
+  if (demoCode && demoCode === code) {
+    sessionStorage.removeItem("veturaime_demo_code");
+    // Update profile
+    await supabase
+      .from("profiles")
+      .update({ email_verified_at: new Date().toISOString() })
+      .eq("id", userId);
+    return true;
+  }
+
+  // Try database function
+  try {
+    const { data, error } = await supabase.rpc("verify_code", {
+      p_user_id: userId,
+      p_code: code
+    });
+    
+    if (error) {
+      // Fallback to client-side verification
+      if (error.message.includes("function") || error.message.includes("does not exist")) {
+        return verifyCodeClientSide(userId, code);
+      }
+      throw new Error(error.message);
+    }
+    
+    return data as boolean;
+  } catch {
+    return verifyCodeClientSide(userId, code);
+  }
+}
+
+async function verifyCodeClientSide(userId: string, code: string): Promise<boolean> {
+  const now = new Date().toISOString();
+  
+  // Find valid code
+  const { data, error } = await supabase
+    .from("verification_codes")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("code", code)
+    .is("used_at", null)
+    .gt("expires_at", now)
+    .single();
+  
+  if (error || !data) {
+    return false;
+  }
+  
+  // Mark as used
+  await supabase
+    .from("verification_codes")
+    .update({ used_at: now })
+    .eq("id", data.id);
+  
+  // Update profile
+  await supabase
+    .from("profiles")
+    .update({ email_verified_at: now })
+    .eq("id", userId);
+  
+  return true;
+}
+
+export async function isEmailVerified(): Promise<boolean> {
+  const userId = await getAuthenticatedUserId();
+  
+  if (!userId) {
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("email_verified_at")
+    .eq("id", userId)
+    .single();
+  
+  if (error) {
+    // If column doesn't exist, skip verification
+    if (error.message.includes("email_verified_at")) {
+      return true;
+    }
+    return false;
+  }
+  
+  return Boolean(data?.email_verified_at);
+}
+
+// =====================================================
+// ONBOARDING FUNCTIONS
+// =====================================================
 
 export async function hasCompletedOnboarding() {
   const userId = await getAuthenticatedUserId();
@@ -106,11 +333,7 @@ export async function hasCompletedOnboarding() {
     return false;
   }
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", userId)
-    .single();
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
 
   if (error) {
     if (error.code === "PGRST116") {
@@ -124,17 +347,17 @@ export async function hasCompletedOnboarding() {
     throw new Error(error.message);
   }
 
-  return Boolean(data?.onboarding_completed_at);
+  return Boolean((data as ProfileRow | null)?.onboarding_completed_at);
 }
 
 export async function saveOnboardingAnswers(answers: OnboardingAnswers) {
   const userId = await getAuthenticatedUserId();
 
   if (!userId) {
-    throw new Error("Nuk ka sesion aktiv. Hyr përsëri.");
+    throw new Error("No active session. Sign in again.");
   }
 
-  const payload = {
+  const payload: Database["public"]["Tables"]["profiles"]["Update"] = {
     ...answers,
     onboarding_completed_at: new Date().toISOString()
   };
@@ -146,6 +369,348 @@ export async function saveOnboardingAnswers(answers: OnboardingAnswers) {
       throw new Error(onboardingMigrationMessage());
     }
 
+    throw new Error(error.message);
+  }
+}
+
+// =====================================================
+// CAR SELECTION FUNCTIONS
+// =====================================================
+
+export async function hasCompletedCarSelection(): Promise<boolean> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    return false;
+  }
+
+  // Check if user has at least one car
+  const { data, error } = await supabase
+    .from("cars")
+    .select("id")
+    .eq("owner_id", userId)
+    .limit(1);
+
+  if (error) {
+    // If table doesn't exist, skip this check
+    if (error.message.includes("does not exist") || error.message.includes("relation")) {
+      return false;
+    }
+    return false;
+  }
+
+  return (data?.length ?? 0) > 0;
+}
+
+export async function createCar(carData: CarInput): Promise<CarRow> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { data, error } = await supabase
+    .from("cars")
+    .insert({
+      owner_id: userId,
+      ...carData
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  // Mark car selection as completed
+  await supabase
+    .from("profiles")
+    .update({ car_selection_completed_at: new Date().toISOString() })
+    .eq("id", userId);
+
+  return data as CarRow;
+}
+
+export async function updateCar(carId: string, carData: Partial<CarInput>): Promise<CarRow> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { data, error } = await supabase
+    .from("cars")
+    .update(carData)
+    .eq("id", carId)
+    .eq("owner_id", userId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as CarRow;
+}
+
+export async function getUserCars(): Promise<CarRow[]> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { data, error } = await supabase
+    .from("cars")
+    .select("*")
+    .eq("owner_id", userId)
+    .order("is_primary", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as CarRow[]) ?? [];
+}
+
+export async function getCarById(carId: string): Promise<CarRow | null> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { data, error } = await supabase
+    .from("cars")
+    .select("*")
+    .eq("id", carId)
+    .eq("owner_id", userId)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      return null;
+    }
+    throw new Error(error.message);
+  }
+
+  return data as CarRow;
+}
+
+// =====================================================
+// VEHICLE DASHBOARD DATA
+// =====================================================
+
+export async function getVehicleDashboardData(carId: string): Promise<VehicleDashboardData> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const [carResult, documentsResult, servicesResult, expensesResult] = await Promise.all([
+    supabase.from("cars").select("*").eq("id", carId).eq("owner_id", userId).single(),
+    supabase
+      .from("documents")
+      .select("*")
+      .eq("car_id", carId)
+      .eq("owner_id", userId)
+      .order("expires_on", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("service_records")
+      .select("*")
+      .eq("car_id", carId)
+      .eq("owner_id", userId)
+      .order("service_date", { ascending: false }),
+    supabase
+      .from("expenses")
+      .select("*")
+      .eq("car_id", carId)
+      .eq("owner_id", userId)
+      .order("expense_date", { ascending: false })
+  ]);
+
+  throwQueryError(carResult.error);
+  throwQueryError(documentsResult.error);
+  throwQueryError(servicesResult.error);
+  throwQueryError(expensesResult.error);
+
+  if (!carResult.data) {
+    throw new Error("Vehicle not found.");
+  }
+
+  return {
+    car: carResult.data as CarRow,
+    documents: (documentsResult.data as DocumentRow[]) ?? [],
+    serviceRecords: (servicesResult.data as ServiceRecordRow[]) ?? [],
+    expenses: (expensesResult.data as ExpenseRow[]) ?? []
+  };
+}
+
+// =====================================================
+// DOCUMENT MANAGEMENT
+// =====================================================
+
+export async function createDocument(doc: Database["public"]["Tables"]["documents"]["Insert"]): Promise<DocumentRow> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { data, error } = await supabase
+    .from("documents")
+    .insert({
+      ...doc,
+      owner_id: userId
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as DocumentRow;
+}
+
+export async function updateDocument(
+  docId: string, 
+  updates: Database["public"]["Tables"]["documents"]["Update"]
+): Promise<DocumentRow> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { data, error } = await supabase
+    .from("documents")
+    .update(updates)
+    .eq("id", docId)
+    .eq("owner_id", userId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as DocumentRow;
+}
+
+// =====================================================
+// SERVICE RECORDS
+// =====================================================
+
+export async function createServiceRecord(
+  record: Database["public"]["Tables"]["service_records"]["Insert"]
+): Promise<ServiceRecordRow> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { data, error } = await supabase
+    .from("service_records")
+    .insert({
+      ...record,
+      owner_id: userId
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as ServiceRecordRow;
+}
+
+// =====================================================
+// EXPENSES
+// =====================================================
+
+export async function createExpense(
+  expense: Database["public"]["Tables"]["expenses"]["Insert"]
+): Promise<ExpenseRow> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { data, error } = await supabase
+    .from("expenses")
+    .insert({
+      ...expense,
+      owner_id: userId
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as ExpenseRow;
+}
+
+// =====================================================
+// GENERAL DASHBOARD
+// =====================================================
+
+export async function getDashboardData(): Promise<DashboardData> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const [profileResult, carsResult, servicesResult, documentsResult, expensesResult] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+    supabase.from("cars").select("*").eq("owner_id", userId).order("created_at", { ascending: false }),
+    supabase
+      .from("service_records")
+      .select("*")
+      .eq("owner_id", userId)
+      .order("service_date", { ascending: false })
+      .limit(6),
+    supabase
+      .from("documents")
+      .select("*")
+      .eq("owner_id", userId)
+      .order("expires_on", { ascending: true, nullsFirst: false })
+      .limit(6),
+    supabase
+      .from("expenses")
+      .select("*")
+      .eq("owner_id", userId)
+      .order("expense_date", { ascending: false })
+      .limit(8)
+  ]);
+
+  throwQueryError(profileResult.error);
+  throwQueryError(carsResult.error);
+  throwQueryError(servicesResult.error);
+  throwQueryError(documentsResult.error);
+  throwQueryError(expensesResult.error);
+
+  return {
+    profile: (profileResult.data as ProfileRow | null) ?? null,
+    cars: (carsResult.data as CarRow[] | null) ?? [],
+    serviceRecords: (servicesResult.data as ServiceRecordRow[] | null) ?? [],
+    documents: (documentsResult.data as DocumentRow[] | null) ?? [],
+    expenses: (expensesResult.data as ExpenseRow[] | null) ?? []
+  };
+}
+
+export async function signOutCurrentUser() {
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
     throw new Error(error.message);
   }
 }

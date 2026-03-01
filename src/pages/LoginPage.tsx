@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { hasCompletedOnboarding, supabase } from "../lib/supabase";
+import { hasCompletedOnboarding, hasCompletedCarSelection, isEmailVerified, supabase } from "../lib/supabase";
 
 type LoginForm = {
   email: string;
@@ -53,8 +53,26 @@ function LoginPage() {
         sessionStorage.setItem("veturaime_access_token", data.session.access_token);
       }
 
+      // Determine where to redirect based on user state
+      const emailVerified = await isEmailVerified();
+      if (!emailVerified) {
+        navigate("/verify");
+        return;
+      }
+
       const onboardingCompleted = await hasCompletedOnboarding();
-      navigate(onboardingCompleted ? "/dashboard" : "/onboarding");
+      if (!onboardingCompleted) {
+        navigate("/onboarding");
+        return;
+      }
+
+      const hasCarSetup = await hasCompletedCarSelection();
+      if (!hasCarSetup) {
+        navigate("/car-setup");
+        return;
+      }
+
+      navigate("/my-garage");
     } catch {
       setError("Identifikimi dështoi. Provo përsëri.");
     } finally {
@@ -84,7 +102,13 @@ function LoginPage() {
         </button>
 
         <div className="mx-auto mt-1 grid h-14 w-14 place-items-center rounded-2xl bg-slateBlue text-mint shadow-[0_10px_24px_rgba(31,100,136,0.28)]">
-          <span className="text-2xl">🛡</span>
+          <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+            />
+          </svg>
         </div>
 
         <h1 className="mt-5 text-center font-display text-4xl tracking-[-0.02em] text-slateBlue">Mirë se u ktheve</h1>

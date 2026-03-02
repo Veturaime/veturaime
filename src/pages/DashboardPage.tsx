@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import type { NotificationRow } from "../lib/database.types";
 import {
+  getNotifications,
   getDashboardData,
   hasCompletedOnboarding,
+  markAllNotificationsRead,
+  markNotificationRead,
   signOutCurrentUser,
   supabase,
+  syncDueNotifications,
   type DashboardData
 } from "../lib/supabase";
 
@@ -51,6 +56,14 @@ function getCarSummary(carId: string, cars: DashboardData["cars"]) {
   }
 
   return getCarLabel(car);
+}
+
+function getNotificationScope(carId: string | null, cars: DashboardData["cars"]) {
+  if (!carId) {
+    return "Të gjitha veturat";
+  }
+
+  return getCarSummary(carId, cars);
 }
 
 function getDocumentStatus(expiresOn: string | null) {
@@ -101,6 +114,9 @@ function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationFilterCarId, setNotificationFilterCarId] = useState("all");
 
   useEffect(() => {
     let isMounted = true;
@@ -143,6 +159,25 @@ function DashboardPage() {
         }
 
         setDashboard(payload);
+
+        setNotificationsLoading(true);
+
+        try {
+          await syncDueNotifications();
+          const inbox = await getNotifications({ includeRead: true, limit: 24 });
+
+          if (isMounted) {
+            setNotifications(inbox);
+          }
+        } catch {
+          if (isMounted) {
+            setNotifications([]);
+          }
+        } finally {
+          if (isMounted) {
+            setNotificationsLoading(false);
+          }
+        }
       } catch (loadError) {
         if (!isMounted) {
           return;
@@ -229,6 +264,32 @@ function DashboardPage() {
       .slice(0, 4);
   }, [dashboard]);
 
+  const unreadNotificationsCount = useMemo(() => {
+    return notifications.filter((notification) => !notification.read_at).length;
+  }, [notifications]);
+
+  const filteredNotifications = useMemo(() => {
+    if (notificationFilterCarId === "all") {
+      return notifications;
+    }
+
+    return notifications.filter((notification) => notification.car_id === notificationFilterCarId);
+  }, [notificationFilterCarId, notifications]);
+
+  const refreshNotifications = async () => {
+    setNotificationsLoading(true);
+
+    try {
+      await syncDueNotifications();
+      const inbox = await getNotifications({ includeRead: true, limit: 24 });
+      setNotifications(inbox);
+    } catch {
+      setNotifications([]);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
   const onReload = async () => {
     setLoading(true);
     setError("");
@@ -236,10 +297,29 @@ function DashboardPage() {
     try {
       const payload = await getDashboardData();
       setDashboard(payload);
+      await refreshNotifications();
     } catch (reloadError) {
       setError(reloadError instanceof Error ? reloadError.message : "Dashboard failed to refresh.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onMarkNotificationRead = async (notificationId: string) => {
+    try {
+      await markNotificationRead(notificationId);
+      await refreshNotifications();
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : "Përditësimi i reminder-it dështoi.");
+    }
+  };
+
+  const onMarkAllNotificationsRead = async () => {
+    try {
+      await markAllNotificationsRead(notificationFilterCarId === "all" ? undefined : notificationFilterCarId);
+      await refreshNotifications();
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : "Përditësimi i reminder-ave dështoi.");
     }
   };
 
@@ -320,7 +400,7 @@ function DashboardPage() {
 
           {dashboard ? (
             <>
-              <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 <article className="rounded-2xl border border-white/10 bg-white/5 p-5">
                   <p className="text-sm text-slate-400">Veturat</p>
                   <p className="mt-3 text-3xl font-extrabold text-white">{dashboard.cars.length}</p>
@@ -344,6 +424,85 @@ function DashboardPage() {
                   <p className="mt-3 text-3xl font-extrabold text-white">{formatCurrency(totalExpenseAmount)}</p>
                   <p className="mt-2 text-sm text-slate-400">Shuma e rreshtave te ngarkuar nga tabela expenses.</p>
                 </article>
+
+                <article className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                  <p className="text-sm text-slate-400">Planifikime / Reminder</p>
+                  <p className="mt-3 text-3xl font-extrabold text-white">{unreadNotificationsCount}</p>
+                  <p className="mt-2 text-sm text-slate-400">Mesazhe të paread në inbox-in global.</p>
+                </article>
+              </section>
+
+              <section className="mt-6 rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.16em] text-slate-400">Reminder inbox</p>
+                    <h2 className="mt-2 text-2xl font-bold text-white">Njoftimet për afate</h2>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={notificationFilterCarId}
+                      onChange={(event) => setNotificationFilterCarId(event.target.value)}
+                      className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white"
+                    >
+                      <option value="all">Të gjitha veturat</option>
+                      {dashboard.cars.map((car) => (
+                        <option key={car.id} value={car.id}>
+                          {getCarLabel(car)}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={onMarkAllNotificationsRead}
+                      disabled={notificationsLoading || unreadNotificationsCount === 0}
+                      className="ui-interactive rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Shëno të gjitha si read
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-5 space-y-3">
+                  {notificationsLoading ? (
+                    <div className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-5 text-sm text-slate-300">
+                      Duke ngarkuar reminders...
+                    </div>
+                  ) : filteredNotifications.length > 0 ? (
+                    filteredNotifications.slice(0, 12).map((notification) => (
+                      <article
+                        key={notification.id}
+                        className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-4 text-sm text-slate-300"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-white">{notification.message}</p>
+                            <p className="mt-1 text-xs text-slate-400">
+                              {getNotificationScope(notification.car_id, dashboard.cars)} • Afati: {formatDate(notification.due_at)}
+                            </p>
+                          </div>
+                          {notification.read_at ? (
+                            <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-200">
+                              Read
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => void onMarkNotificationRead(notification.id)}
+                              className="rounded-full border border-mint/30 bg-mint/10 px-3 py-1 text-xs font-semibold text-mint"
+                            >
+                              Shëno read
+                            </button>
+                          )}
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <EmptyPanel
+                      title="Nuk ka reminders aktive"
+                      description="Kur dokumentet ose servisimet afrohen, mesazhet do të shfaqen këtu automatikisht."
+                    />
+                  )}
+                </div>
               </section>
 
               <section className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_0.85fr]">

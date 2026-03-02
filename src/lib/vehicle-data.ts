@@ -371,20 +371,37 @@ async function fetchCarsXeImage(
       return fetchCarsXeImageDirect(make, model, year, color);
     }
 
-    const { data, error } = await supabase.functions.invoke<{
-      imageUrl?: string | null;
-      provider?: string | null;
-    }>("vehicle-image", {
-      headers: {
-        Authorization: `Bearer ${session.access_token}`
-      },
-      body: {
-        make,
-        model,
-        year: year ?? null,
-        color: color ?? null
-      }
-    });
+    if (session.expires_at && session.expires_at * 1000 <= Date.now() + 5000) {
+      await supabase.auth.refreshSession();
+    }
+
+    const invokeVehicleImage = () =>
+      supabase.functions.invoke<{
+        imageUrl?: string | null;
+        provider?: string | null;
+      }>("vehicle-image", {
+        body: {
+          make,
+          model,
+          year: year ?? null,
+          color: color ?? null
+        }
+      });
+
+    let { data, error } = await invokeVehicleImage();
+
+    const isUnauthorized =
+      !!error &&
+      (String((error as { status?: number }).status ?? "") === "401" ||
+        error.message.toLowerCase().includes("unauthorized") ||
+        error.message.toLowerCase().includes("jwt"));
+
+    if (isUnauthorized) {
+      await supabase.auth.refreshSession();
+      const retryResult = await invokeVehicleImage();
+      data = retryResult.data;
+      error = retryResult.error;
+    }
 
     if (error) {
       return fetchCarsXeImageDirect(make, model, year, color);

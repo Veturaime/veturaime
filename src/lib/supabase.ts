@@ -5,6 +5,7 @@ import type {
   Database,
   DocumentRow,
   ExpenseRow,
+  NotificationRow,
   ProfileRow,
   ServiceRecordRow
 } from "./database.types";
@@ -53,6 +54,14 @@ export type VehicleDashboardData = {
   expenses: ExpenseRow[];
 };
 
+export type NotificationQueryOptions = {
+  carId?: string;
+  includeRead?: boolean;
+  limit?: number;
+};
+
+type ReminderTriggerKind = "due_30" | "due_7" | "due_today_or_overdue";
+
 type RegisterInput = {
   fullName: string;
   email: string;
@@ -79,7 +88,7 @@ function isMissingDashboardSchemaError(errorMessage: string) {
     normalized.includes("could not find the table") ||
     normalized.includes("schema cache") ||
     (normalized.includes("relation") &&
-      ["cars", "service_records", "documents", "expenses"].some((tableName) =>
+      ["cars", "service_records", "documents", "expenses", "notifications"].some((tableName) =>
         normalized.includes(tableName)
       ))
   );
@@ -107,6 +116,70 @@ function throwQueryError(error: { message: string } | null) {
   }
 
   throw new Error(error.message);
+}
+
+function toLocalDate(input: string) {
+  return new Date(`${input}T00:00:00`);
+}
+
+function getTodayStart() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+function getDiffDays(dueAt: string) {
+  const dueDate = toLocalDate(dueAt);
+
+  if (Number.isNaN(dueDate.getTime())) {
+    return null;
+  }
+
+  const today = getTodayStart();
+  const diff = dueDate.getTime() - today.getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+function getReminderTriggers(diffDays: number): ReminderTriggerKind[] {
+  const triggers: ReminderTriggerKind[] = [];
+
+  if (diffDays <= 30) {
+    triggers.push("due_30");
+  }
+
+  if (diffDays <= 7) {
+    triggers.push("due_7");
+  }
+
+  if (diffDays <= 0) {
+    triggers.push("due_today_or_overdue");
+  }
+
+  return triggers;
+}
+
+function formatDocumentReminderMessage(documentType: string, diffDays: number) {
+  if (diffDays < 0) {
+    return `Dokumenti ${documentType} është i skaduar.`;
+  }
+
+  if (diffDays === 0) {
+    return `Dokumenti ${documentType} skadon sot.`;
+  }
+
+  return `Dokumenti ${documentType} skadon për ${diffDays} ditë.`;
+}
+
+function formatServiceReminderMessage(serviceType: string, diffDays: number) {
+  if (diffDays < 0) {
+    return `Servisimi ${serviceType} është kaluar dhe kërkon vëmendje.`;
+  }
+
+  if (diffDays === 0) {
+    return `Servisimi ${serviceType} është planifikuar për sot.`;
+  }
+
+  return `Servisimi ${serviceType} është planifikuar për ${diffDays} ditë.`;
 }
 
 export async function registerWithEmail({ fullName, email, password }: RegisterInput) {
@@ -600,6 +673,24 @@ export async function updateDocument(
   return data as DocumentRow;
 }
 
+export async function deleteDocument(docId: string): Promise<void> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { error } = await supabase
+    .from("documents")
+    .delete()
+    .eq("id", docId)
+    .eq("owner_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 // =====================================================
 // SERVICE RECORDS
 // =====================================================
@@ -663,9 +754,23 @@ export async function deleteServiceRecord(recordId: string): Promise<void> {
 
   const { error } = await supabase
     .from("service_records")
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq("id", recordId)
     .eq("owner_id", userId);
+
+  if (error && error.message.toLowerCase().includes("deleted_at")) {
+    const { error: fallbackError } = await supabase
+      .from("service_records")
+      .delete()
+      .eq("id", recordId)
+      .eq("owner_id", userId);
+
+    if (fallbackError) {
+      throw new Error(fallbackError.message);
+    }
+
+    return;
+  }
 
   if (error) {
     throw new Error(error.message);
@@ -699,6 +804,227 @@ export async function createExpense(
   }
 
   return data as ExpenseRow;
+}
+
+export async function updateExpense(
+  expenseId: string,
+  updates: Database["public"]["Tables"]["expenses"]["Update"]
+): Promise<ExpenseRow> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { data, error } = await supabase
+    .from("expenses")
+    .update(updates)
+    .eq("id", expenseId)
+    .eq("owner_id", userId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as ExpenseRow;
+}
+
+export async function deleteExpense(expenseId: string): Promise<void> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { error } = await supabase
+    .from("expenses")
+    .delete()
+    .eq("id", expenseId)
+    .eq("owner_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+// =====================================================
+// NOTIFICATIONS / REMINDERS
+// =====================================================
+
+export async function syncDueNotifications(carId?: string): Promise<void> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  let documentsQuery = supabase
+    .from("documents")
+    .select("id, car_id, document_type, expires_on")
+    .eq("owner_id", userId)
+    .not("expires_on", "is", null);
+
+  let servicesQuery = supabase
+    .from("service_records")
+    .select("id, car_id, service_type, next_service_due_at")
+    .eq("owner_id", userId)
+    .not("next_service_due_at", "is", null);
+
+  if (carId) {
+    documentsQuery = documentsQuery.eq("car_id", carId);
+    servicesQuery = servicesQuery.eq("car_id", carId);
+  }
+
+  const [documentsResult, servicesResult] = await Promise.all([documentsQuery, servicesQuery]);
+
+  throwQueryError(documentsResult.error);
+  throwQueryError(servicesResult.error);
+
+  const notificationsToUpsert: Database["public"]["Tables"]["notifications"]["Insert"][] = [];
+
+  for (const document of documentsResult.data ?? []) {
+    if (!document.expires_on) {
+      continue;
+    }
+
+    const diffDays = getDiffDays(document.expires_on);
+
+    if (diffDays === null || diffDays > 30) {
+      continue;
+    }
+
+    const triggerKinds = getReminderTriggers(diffDays);
+
+    for (const triggerKind of triggerKinds) {
+      notificationsToUpsert.push({
+        owner_id: userId,
+        car_id: document.car_id,
+        source_type: "document",
+        source_id: document.id,
+        trigger_kind: triggerKind,
+        due_at: document.expires_on,
+        message: formatDocumentReminderMessage(document.document_type, diffDays)
+      });
+    }
+  }
+
+  for (const service of servicesResult.data ?? []) {
+    if (!service.next_service_due_at) {
+      continue;
+    }
+
+    const diffDays = getDiffDays(service.next_service_due_at);
+
+    if (diffDays === null || diffDays > 30) {
+      continue;
+    }
+
+    const triggerKinds = getReminderTriggers(diffDays);
+
+    for (const triggerKind of triggerKinds) {
+      notificationsToUpsert.push({
+        owner_id: userId,
+        car_id: service.car_id,
+        source_type: "service",
+        source_id: service.id,
+        trigger_kind: triggerKind,
+        due_at: service.next_service_due_at,
+        message: formatServiceReminderMessage(service.service_type, diffDays)
+      });
+    }
+  }
+
+  if (notificationsToUpsert.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from("notifications")
+    .upsert(notificationsToUpsert, {
+      onConflict: "owner_id,source_type,source_id,trigger_kind",
+      ignoreDuplicates: false
+    });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function getNotifications(options: NotificationQueryOptions = {}): Promise<NotificationRow[]> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { carId, includeRead = true, limit = 20 } = options;
+
+  let query = supabase
+    .from("notifications")
+    .select("*")
+    .eq("owner_id", userId)
+    .order("read_at", { ascending: true, nullsFirst: true })
+    .order("due_at", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (carId) {
+    query = query.eq("car_id", carId);
+  }
+
+  if (!includeRead) {
+    query = query.is("read_at", null);
+  }
+
+  const { data, error } = await query;
+
+  throwQueryError(error);
+
+  return (data as NotificationRow[] | null) ?? [];
+}
+
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", notificationId)
+    .eq("owner_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function markAllNotificationsRead(carId?: string): Promise<void> {
+  const userId = await getAuthenticatedUserId();
+
+  if (!userId) {
+    throw new Error("No active session. Sign in again.");
+  }
+
+  let query = supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("owner_id", userId)
+    .is("read_at", null);
+
+  if (carId) {
+    query = query.eq("car_id", carId);
+  }
+
+  const { error } = await query;
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 // =====================================================

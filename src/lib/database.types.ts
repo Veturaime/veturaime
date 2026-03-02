@@ -178,6 +178,7 @@ export type Database = {
           mileage: number | null;
           notes: string | null;
           next_service_due_at: string | null;
+          deleted_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -192,6 +193,7 @@ export type Database = {
           mileage?: number | null;
           notes?: string | null;
           next_service_due_at?: string | null;
+          deleted_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -205,6 +207,7 @@ export type Database = {
           mileage?: number | null;
           notes?: string | null;
           next_service_due_at?: string | null;
+          deleted_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -343,6 +346,59 @@ export type Database = {
           }
         ];
       };
+      notifications: {
+        Row: {
+          id: string;
+          owner_id: string;
+          car_id: string | null;
+          source_type: "document" | "service";
+          source_id: string;
+          trigger_kind: "due_30" | "due_7" | "due_today_or_overdue";
+          due_at: string | null;
+          message: string;
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          car_id?: string | null;
+          source_type: "document" | "service";
+          source_id: string;
+          trigger_kind: "due_30" | "due_7" | "due_today_or_overdue";
+          due_at?: string | null;
+          message: string;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          owner_id?: string;
+          car_id?: string | null;
+          source_type?: "document" | "service";
+          source_id?: string;
+          trigger_kind?: "due_30" | "due_7" | "due_today_or_overdue";
+          due_at?: string | null;
+          message?: string;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notifications_owner_id_fkey";
+            columns: ["owner_id"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+            isOneToOne: false;
+          },
+          {
+            foreignKeyName: "notifications_car_id_fkey";
+            columns: ["car_id"];
+            referencedRelation: "cars";
+            referencedColumns: ["id"];
+            isOneToOne: false;
+          }
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -366,6 +422,7 @@ export type CarRow = Database["public"]["Tables"]["cars"]["Row"];
 export type ServiceRecordRow = Database["public"]["Tables"]["service_records"]["Row"];
 export type DocumentRow = Database["public"]["Tables"]["documents"]["Row"];
 export type ExpenseRow = Database["public"]["Tables"]["expenses"]["Row"];
+export type NotificationRow = Database["public"]["Tables"]["notifications"]["Row"];
 
 // Extended onboarding answers with new fields
 export type OnboardingAnswers = {

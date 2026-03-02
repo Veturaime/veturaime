@@ -1,15 +1,33 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+declare const Deno: {
+  env: {
+    get: (key: string) => string | undefined;
+  };
+  serve: (handler: (request: Request) => Response | Promise<Response>) => void;
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
+
+const CACHE_TTL_MS = 30 * 60 * 1000;
+const requestCache = new Map<string, { imageUrl: string | null; expiresAt: number }>();
 
 type VehicleImageRequest = {
   make?: string;
   model?: string;
   year?: number | null;
   color?: string | null;
+};
+
+type NormalizedVehicleImageRequest = {
+  make: string;
+  model: string;
+  year: number | null;
+  color: string | null;
 };
 
 type CarsXeImage = {
@@ -103,6 +121,64 @@ function json(body: unknown, init?: ResponseInit) {
       ...corsHeaders,
       ...(init?.headers ?? {})
     }
+  });
+}
+
+function normalizeRequest(body: VehicleImageRequest) {
+  const nowYear = new Date().getFullYear();
+  const make = body.make?.trim();
+  const model = body.model?.trim();
+  const color = body.color?.trim() || null;
+  const year = typeof body.year === "number" && Number.isFinite(body.year) ? Math.trunc(body.year) : null;
+
+  if (!make || !model) {
+    return { error: "Both make and model are required." } as const;
+  }
+
+  if (make.length > 60 || model.length > 60) {
+    return { error: "Make and model must be 60 characters or fewer." } as const;
+  }
+
+  if (color && color.length > 30) {
+    return { error: "Color must be 30 characters or fewer." } as const;
+  }
+
+  if (year !== null && (year < 1950 || year > nowYear + 1)) {
+    return { error: `Year must be between 1950 and ${nowYear + 1}.` } as const;
+  }
+
+  return {
+    value: {
+      make,
+      model,
+      year,
+      color
+    }
+  } as const;
+}
+
+function buildCacheKey(payload: NormalizedVehicleImageRequest) {
+  return `${payload.make.toLowerCase()}|${payload.model.toLowerCase()}|${payload.year ?? ""}|${payload.color?.toLowerCase() ?? ""}`;
+}
+
+function getCachedImage(cacheKey: string) {
+  const entry = requestCache.get(cacheKey);
+  if (!entry) {
+    return null;
+  }
+
+  if (entry.expiresAt < Date.now()) {
+    requestCache.delete(cacheKey);
+    return null;
+  }
+
+  return entry.imageUrl;
+}
+
+function setCachedImage(cacheKey: string, imageUrl: string | null) {
+  requestCache.set(cacheKey, {
+    imageUrl,
+    expiresAt: Date.now() + CACHE_TTL_MS
   });
 }
 
@@ -218,7 +294,7 @@ async function fetchCarsXeImage(apiKey: string, payload: Required<Pick<VehicleIm
   return null;
 }
 
-serve(async (request) => {
+Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -241,22 +317,36 @@ serve(async (request) => {
     return json({ error: "Invalid JSON payload." }, { status: 400 });
   }
 
-  const make = body.make?.trim();
-  const model = body.model?.trim();
+  const normalized = normalizeRequest(body);
 
-  if (!make || !model) {
-    return json({ error: "Both make and model are required." }, { status: 400 });
+  if ("error" in normalized) {
+    return json({ error: normalized.error }, { status: 400 });
+  }
+
+  const payload = normalized.value;
+  const cacheKey = buildCacheKey(payload);
+  const cachedImageUrl = getCachedImage(cacheKey);
+
+  if (cachedImageUrl !== null) {
+    return json({
+      imageUrl: cachedImageUrl,
+      provider: cachedImageUrl ? "carsxe" : null,
+      cached: true
+    });
   }
 
   const imageUrl = await fetchCarsXeImage(apiKey, {
-    make,
-    model,
-    year: body.year ?? null,
-    color: body.color ?? null
+    make: payload.make,
+    model: payload.model,
+    year: payload.year,
+    color: payload.color
   });
+
+  setCachedImage(cacheKey, imageUrl);
 
   return json({
     imageUrl,
-    provider: imageUrl ? "carsxe" : null
+    provider: imageUrl ? "carsxe" : null,
+    cached: false
   });
 });

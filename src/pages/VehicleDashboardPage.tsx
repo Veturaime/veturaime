@@ -1,13 +1,21 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { DocumentRow, ExpenseRow, ServiceRecordRow } from "../lib/database.types";
+import type { DocumentRow, ExpenseRow, NotificationRow, ServiceRecordRow } from "../lib/database.types";
 import {
   createDocument,
   createExpense,
   createServiceRecord,
+  deleteDocument,
+  deleteExpense,
   deleteServiceRecord,
+  getNotifications,
   getVehicleDashboardData,
+  markAllNotificationsRead,
+  markNotificationRead,
   supabase,
+  syncDueNotifications,
+  updateDocument,
+  updateExpense,
   updateServiceRecord,
   type VehicleDashboardData,
   updateCar
@@ -41,7 +49,7 @@ type DocumentFilter = "all" | "expiring" | "expired";
 type DocumentKind = "registration" | "insurance" | "inspection" | "authorization" | "invoice" | "manual";
 type ServiceKind = "oil_change" | "brakes" | "tires" | "battery" | "antifreeze" | "general" | "other";
 type ExpenseKind = "fuel" | "service" | "documents" | "parts" | "parking_fines" | "other";
-type ReportEventFilter = "documents" | "services" | "expenses";
+type ReportEventFilter = "all" | "documents" | "services" | "expenses";
 
 function formatCurrency(value: number) {
   return currencyFormatter.format(value);
@@ -93,18 +101,18 @@ function getDocumentReportStatus(expiresOn: string | null): "ok" | "expiring" | 
   return "ok";
 }
 
-// Document type icons and labels
-const DOCUMENT_TYPES: Record<string, { label: string; icon: string }> = {
-  registration: { label: "Regjistrimi", icon: "📋" },
-  insurance: { label: "Sigurimi", icon: "🛡️" },
-  inspection: { label: "Kontrolli Teknik", icon: "🔧" },
-  authorization: { label: "Leja/Autorizim", icon: "🪪" },
-  invoice: { label: "Faturë / Kupon", icon: "🧾" },
-  manual: { label: "Manual / të tjera", icon: "📘" },
-  license: { label: "Leja/Autorizim", icon: "🪪" },
-  tax: { label: "Faturë / Kupon", icon: "🧾" },
-  warranty: { label: "Manual / të tjera", icon: "📘" },
-  other: { label: "Tjetër", icon: "📄" }
+// Document type labels
+const DOCUMENT_TYPES: Record<string, { label: string }> = {
+  registration: { label: "Regjistrimi" },
+  insurance: { label: "Sigurimi" },
+  inspection: { label: "Kontrolli Teknik" },
+  authorization: { label: "Leja/Autorizim" },
+  invoice: { label: "Faturë / Kupon" },
+  manual: { label: "Manual / të tjera" },
+  license: { label: "Leja/Autorizim" },
+  tax: { label: "Faturë / Kupon" },
+  warranty: { label: "Manual / të tjera" },
+  other: { label: "Tjetër" }
 };
 
 const DOCUMENT_KIND_OPTIONS: Array<{ value: DocumentKind; label: string }> = [
@@ -231,6 +239,8 @@ function VehicleDashboardPage() {
   const [data, setData] = useState<VehicleDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [carImage, setCarImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -274,10 +284,31 @@ function VehicleDashboardPage() {
 
   const [reportYear, setReportYear] = useState<string>(String(currentYear));
   const [reportMonth, setReportMonth] = useState<string>(String(currentMonth));
-  const [reportEventFilter, setReportEventFilter] = useState<ReportEventFilter>("expenses");
+  const [reportEventFilter, setReportEventFilter] = useState<ReportEventFilter>("all");
 
   useEffect(() => {
     let isMounted = true;
+
+    const loadNotificationsForCar = async (targetCarId: string) => {
+      setNotificationsLoading(true);
+
+      try {
+        await syncDueNotifications(targetCarId);
+        const inbox = await getNotifications({ carId: targetCarId, includeRead: true, limit: 20 });
+
+        if (isMounted) {
+          setNotifications(inbox);
+        }
+      } catch {
+        if (isMounted) {
+          setNotifications([]);
+        }
+      } finally {
+        if (isMounted) {
+          setNotificationsLoading(false);
+        }
+      }
+    };
 
     const loadData = async () => {
       if (!carId) {
@@ -301,6 +332,7 @@ function VehicleDashboardPage() {
         if (!isMounted) return;
 
         setData(dashboardData);
+        await loadNotificationsForCar(carId);
 
         // Fetch car image
         const car = dashboardData.car;
@@ -360,12 +392,12 @@ function VehicleDashboardPage() {
 
   const totalServices = useMemo(() => {
     if (!data) return 0;
-    return data.serviceRecords.reduce((sum, s) => sum + Number(s.cost), 0);
+    return data.serviceRecords.filter((s) => !s.deleted_at).reduce((sum, s) => sum + Number(s.cost), 0);
   }, [data]);
 
   const nextService = useMemo(() => {
     if (!data) return null;
-    return data.serviceRecords.find((s) => s.next_service_due_at);
+    return data.serviceRecords.find((s) => !s.deleted_at && s.next_service_due_at);
   }, [data]);
 
   const documentFilterStats = useMemo(() => {
@@ -492,11 +524,19 @@ function VehicleDashboardPage() {
     }));
 
     return [...expenseRows, ...serviceRows, ...documentRows]
-      .filter((row) => row.kind === reportEventFilter)
+      .filter((row) => reportEventFilter === "all" || row.kind === reportEventFilter)
       .sort(
       (left, right) => new Date(right.date).getTime() - new Date(left.date).getTime()
     );
   }, [reportDocuments, reportEventFilter, reportExpenses, reportServices]);
+
+  const latestReportRows = useMemo(() => {
+    if (reportEventFilter !== "all") {
+      return [];
+    }
+
+    return reportHistoryRows.slice(0, 3);
+  }, [reportEventFilter, reportHistoryRows]);
 
   useEffect(() => {
     const option = DOCUMENT_KIND_OPTIONS.find((item) => item.value === documentType);
@@ -527,6 +567,43 @@ function VehicleDashboardPage() {
     if (!carId) return;
     const freshData = await getVehicleDashboardData(carId);
     setData(freshData);
+
+    setNotificationsLoading(true);
+    try {
+      await syncDueNotifications(carId);
+      const inbox = await getNotifications({ carId, includeRead: true, limit: 20 });
+      setNotifications(inbox);
+    } catch {
+      setNotifications([]);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const unreadNotificationCount = useMemo(() => {
+    return notifications.filter((notification) => !notification.read_at).length;
+  }, [notifications]);
+
+  const handleMarkNotificationRead = async (notificationId: string) => {
+    try {
+      await markNotificationRead(notificationId);
+      await refreshData();
+    } catch (actionError) {
+      setFormError(actionError instanceof Error ? actionError.message : "Përditësimi i reminder-it dështoi.");
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    if (!carId) {
+      return;
+    }
+
+    try {
+      await markAllNotificationsRead(carId);
+      await refreshData();
+    } catch (actionError) {
+      setFormError(actionError instanceof Error ? actionError.message : "Përditësimi i reminder-ave dështoi.");
+    }
   };
 
   const handleCreateDocument = async (event: FormEvent<HTMLFormElement>) => {
@@ -754,6 +831,85 @@ function VehicleDashboardPage() {
     }
   };
 
+  const handleEditDocument = async (document: DocumentRow) => {
+    const nextTitle = window.prompt("Titulli / referenca", document.reference_number ?? "") ?? document.reference_number ?? "";
+    const nextExpiry = window.prompt("Data e skadimit (YYYY-MM-DD)", document.expires_on ?? "") ?? document.expires_on ?? "";
+    const nextNotes = window.prompt("Shënime", document.notes ?? "") ?? document.notes ?? "";
+
+    setFormError("");
+
+    try {
+      const normalizedExpiry = nextExpiry.trim() || null;
+
+      await updateDocument(document.id, {
+        reference_number: nextTitle.trim() || null,
+        expires_on: normalizedExpiry,
+        notes: nextNotes.trim() || null,
+        status: getDocumentReportStatus(normalizedExpiry) === "expired" ? "expired" : "active"
+      });
+
+      await refreshData();
+    } catch (editError) {
+      setFormError(editError instanceof Error ? editError.message : "Editimi i dokumentit dështoi.");
+    }
+  };
+
+  const handleDeleteDocument = async (document: DocumentRow) => {
+    const confirmed = window.confirm("A je i sigurt që don me fshi këtë dokument?");
+    if (!confirmed) return;
+
+    setFormError("");
+
+    try {
+      await deleteDocument(document.id);
+      await refreshData();
+    } catch (deleteError) {
+      setFormError(deleteError instanceof Error ? deleteError.message : "Fshirja e dokumentit dështoi.");
+    }
+  };
+
+  const handleEditExpense = async (expense: ExpenseRow) => {
+    const nextDate = window.prompt("Data (YYYY-MM-DD)", expense.expense_date) ?? expense.expense_date;
+    const nextCategory = window.prompt("Kategoria", expense.category) ?? expense.category;
+    const nextAmount = window.prompt("Shuma", String(expense.amount)) ?? String(expense.amount);
+    const nextNotes = window.prompt("Shënime", expense.notes ?? "") ?? expense.notes ?? "";
+
+    setFormError("");
+
+    try {
+      const amountValue = Number(nextAmount);
+
+      if (!Number.isFinite(amountValue) || amountValue < 0) {
+        throw new Error("Shuma nuk është valide.");
+      }
+
+      await updateExpense(expense.id, {
+        expense_date: nextDate.trim() || expense.expense_date,
+        category: nextCategory.trim() || expense.category,
+        amount: amountValue,
+        notes: nextNotes.trim() || null
+      });
+
+      await refreshData();
+    } catch (editError) {
+      setFormError(editError instanceof Error ? editError.message : "Editimi i shpenzimit dështoi.");
+    }
+  };
+
+  const handleDeleteExpense = async (expense: ExpenseRow) => {
+    const confirmed = window.confirm("A je i sigurt që don me fshi këtë shpenzim?");
+    if (!confirmed) return;
+
+    setFormError("");
+
+    try {
+      await deleteExpense(expense.id);
+      await refreshData();
+    } catch (deleteError) {
+      setFormError(deleteError instanceof Error ? deleteError.message : "Fshirja e shpenzimit dështoi.");
+    }
+  };
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-deep text-white">
@@ -782,6 +938,7 @@ function VehicleDashboardPage() {
   }
 
   const { car, documents, serviceRecords, expenses } = data;
+  const activeServiceRecords = serviceRecords.filter((service) => !service.deleted_at);
   const colorInfo = COLORS.find((c) => c.value === car.color);
   const bodyTypeInfo = BODY_TYPES.find((b) => b.value === car.body_type);
   const fuelTypeInfo = FUEL_TYPES.find((f) => f.value === car.fuel_type);
@@ -895,11 +1052,11 @@ function VehicleDashboardPage() {
           {/* Tabs */}
           <nav className="mt-8 flex gap-1 overflow-x-auto">
             {[
-              { key: "overview" as Tab, label: "Përmbledhje", icon: "📊" },
-              { key: "documents" as Tab, label: "Dokumente", icon: "📋" },
-              { key: "services" as Tab, label: "Servisime", icon: "🔧" },
-              { key: "expenses" as Tab, label: "Shpenzime", icon: "💰" },
-              { key: "reports" as Tab, label: "Raporti", icon: "📈" }
+              { key: "overview" as Tab, label: "Përmbledhje" },
+              { key: "documents" as Tab, label: "Dokumente" },
+              { key: "services" as Tab, label: "Servisime" },
+              { key: "expenses" as Tab, label: "Shpenzime" },
+              { key: "reports" as Tab, label: "Raporti" }
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -917,7 +1074,6 @@ function VehicleDashboardPage() {
                     : "text-slate-400 hover:bg-white/5 hover:text-white"
                 }`}
               >
-                <span>{tab.icon}</span>
                 {tab.label}
               </button>
             ))}
@@ -934,9 +1090,7 @@ function VehicleDashboardPage() {
             {urgentDocuments.length > 0 && (
               <section className="rounded-3xl border border-red-500/20 bg-gradient-to-br from-red-500/10 to-red-900/5 p-6">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/20 text-xl">
-                    ⚠️
-                  </div>
+                  <div className="h-3 w-3 rounded-full bg-red-400" />
                   <div>
                     <h2 className="font-display text-lg font-bold text-red-300">Vëmendje!</h2>
                     <p className="text-sm text-red-300/70">
@@ -954,7 +1108,6 @@ function VehicleDashboardPage() {
                         className="flex items-center justify-between rounded-xl border border-white/10 bg-deep/50 p-4"
                       >
                         <div className="flex items-center gap-3">
-                          <span className="text-xl">{docType.icon}</span>
                           <div>
                             <p className="font-semibold">{docType.label}</p>
                             <p className="text-xs text-slate-400">Skadon: {formatDate(doc.expires_on)}</p>
@@ -979,34 +1132,84 @@ function VehicleDashboardPage() {
             {/* Stats grid */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard
-                icon="📋"
                 label="Dokumente"
                 value={String(documents.length)}
                 sublabel={`${urgentDocuments.length} po skadon`}
                 color={urgentDocuments.length > 0 ? "amber" : "mint"}
               />
               <StatCard
-                icon="🔧"
                 label="Servisime"
-                value={String(serviceRecords.length)}
+                value={String(activeServiceRecords.length)}
                 sublabel={formatCurrency(totalServices)}
                 color="blue"
               />
               <StatCard
-                icon="💰"
                 label="Shpenzime"
                 value={formatCurrency(totalExpenses)}
                 sublabel={`${expenses.length} transaksione`}
                 color="purple"
               />
               <StatCard
-                icon="📅"
                 label="Planifikime / Reminder"
-                value={nextService?.next_service_due_at ? formatDate(nextService.next_service_due_at) : "—"}
-                sublabel={nextService?.service_type || "Servisi tjetër"}
+                value={String(unreadNotificationCount)}
+                sublabel={nextService?.service_type || "Mesazhe të paread"}
                 color="slate"
               />
             </div>
+
+            <section className="rounded-3xl border border-white/10 bg-slate-900/50 p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-display text-lg font-bold">Reminder inbox</h3>
+                  <p className="text-sm text-slate-400">Mesazhe për këtë veturë (dokumente + servisime)</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleMarkAllNotificationsRead}
+                  disabled={notificationsLoading || unreadNotificationCount === 0}
+                  className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Shëno të gjitha si read
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {notificationsLoading ? (
+                  <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
+                    Duke ngarkuar reminders...
+                  </div>
+                ) : notifications.length > 0 ? (
+                  notifications.slice(0, 8).map((notification) => (
+                    <article
+                      key={notification.id}
+                      className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 bg-deep/30 p-4"
+                    >
+                      <div>
+                        <p className="font-semibold text-white">{notification.message}</p>
+                        <p className="mt-1 text-xs text-slate-400">Afati: {formatDate(notification.due_at)}</p>
+                      </div>
+                      {notification.read_at ? (
+                        <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-200">
+                          Read
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void handleMarkNotificationRead(notification.id)}
+                          className="rounded-full border border-mint/30 bg-mint/10 px-3 py-1 text-xs font-semibold text-mint"
+                        >
+                          Shëno read
+                        </button>
+                      )}
+                    </article>
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
+                    Nuk ka reminders aktive për këtë veturë.
+                  </div>
+                )}
+              </div>
+            </section>
 
             {/* Recent activity */}
             <div className="grid gap-6 lg:grid-cols-2">
@@ -1047,10 +1250,10 @@ function VehicleDashboardPage() {
                   </button>
                 </div>
                 <div className="mt-4 space-y-3">
-                  {serviceRecords.slice(0, 4).map((service) => (
+                  {activeServiceRecords.slice(0, 4).map((service) => (
                     <ServiceRow key={service.id} service={service} />
                   ))}
-                  {serviceRecords.length === 0 && (
+                  {activeServiceRecords.length === 0 && (
                     <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
                       Nuk ka servisime ende.
                     </div>
@@ -1261,7 +1464,13 @@ function VehicleDashboardPage() {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredDocuments.map((doc) => (
-                  <DocumentCard key={doc.id} document={doc} />
+                  <DocumentCard
+                    key={doc.id}
+                    document={doc}
+                    onEdit={handleEditDocument}
+                    onDelete={handleDeleteDocument}
+                    showActions
+                  />
                 ))}
               </div>
             )}
@@ -1510,13 +1719,13 @@ function VehicleDashboardPage() {
                 </button>
               </form>
 
-            {serviceRecords.length === 0 ? (
+            {activeServiceRecords.length === 0 ? (
               <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-6 text-sm text-slate-400">
                 Nuk ka servisime ende.
               </div>
             ) : (
               <div className="space-y-4">
-                {serviceRecords.map((service) => (
+                {activeServiceRecords.map((service) => (
                   <ServiceCard
                     key={service.id}
                     service={service}
@@ -1619,7 +1828,13 @@ function VehicleDashboardPage() {
             ) : (
               <div className="space-y-3">
                 {expenses.map((expense) => (
-                  <ExpenseCard key={expense.id} expense={expense} />
+                  <ExpenseCard
+                    key={expense.id}
+                    expense={expense}
+                    onEdit={handleEditExpense}
+                    onDelete={handleDeleteExpense}
+                    showActions
+                  />
                 ))}
               </div>
             )}
@@ -1661,69 +1876,180 @@ function VehicleDashboardPage() {
                 </select>
               </label>
 
-              <div className="flex flex-wrap gap-2 pb-0.5">
-                <button
-                  type="button"
-                  onClick={() => setReportEventFilter("documents")}
-                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                    reportEventFilter === "documents" ? "bg-mint/15 text-mint" : "bg-white/5 text-slate-300"
-                  }`}
+              <label className="text-sm text-slate-300">
+                Lloji
+                <select
+                  value={reportEventFilter}
+                  onChange={(event) => setReportEventFilter(event.target.value as ReportEventFilter)}
+                  className="mt-1 w-44 rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
                 >
-                  Dokumente
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setReportEventFilter("services")}
-                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                    reportEventFilter === "services" ? "bg-mint/15 text-mint" : "bg-white/5 text-slate-300"
-                  }`}
-                >
-                  Servisime
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setReportEventFilter("expenses")}
-                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                    reportEventFilter === "expenses" ? "bg-mint/15 text-mint" : "bg-white/5 text-slate-300"
-                  }`}
-                >
-                  Shpenzime
-                </button>
-              </div>
+                  <option value="all">Të gjitha</option>
+                  <option value="documents">Dokumente</option>
+                  <option value="services">Servisime</option>
+                  <option value="expenses">Shpenzime</option>
+                </select>
+              </label>
             </div>
 
-            <section className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900/50">
-              <div className="border-b border-white/10 px-4 py-3">
-                <h3 className="font-display text-lg font-bold">Historia e plotë</h3>
+            {reportEventFilter === "all" ? (
+              <div className="space-y-6">
+                <section className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="font-display text-lg font-bold">Dokumente</h3>
+                    <span className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-200">
+                      {reportDocuments.length}
+                    </span>
+                  </div>
+                  {reportDocuments.length > 0 ? (
+                    <div className="space-y-3">
+                      {reportDocuments.map((document) => (
+                        <DocumentCard
+                          key={`report-document-${document.id}`}
+                          document={document}
+                          onEdit={handleEditDocument}
+                          onDelete={handleDeleteDocument}
+                          showActions={false}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
+                      Nuk ka dokumente për filtrin aktual.
+                    </div>
+                  )}
+                </section>
+
+                <section className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="font-display text-lg font-bold">Servisime</h3>
+                    <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200">
+                      {reportServices.length}
+                    </span>
+                  </div>
+                  {reportServices.length > 0 ? (
+                    <div className="space-y-3">
+                      {reportServices.map((service) => (
+                        <ServiceCard
+                          key={`report-service-${service.id}`}
+                          service={service}
+                          onEdit={handleEditService}
+                          onDelete={handleDeleteService}
+                          showActions={false}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
+                      Nuk ka servisime për filtrin aktual.
+                    </div>
+                  )}
+                </section>
+
+                <section className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="font-display text-lg font-bold">Shpenzime</h3>
+                    <span className="rounded-full border border-purple-400/30 bg-purple-500/10 px-3 py-1 text-xs font-semibold text-purple-200">
+                      {reportExpenses.length}
+                    </span>
+                  </div>
+                  {reportExpenses.length > 0 ? (
+                    <div className="space-y-3">
+                      {reportExpenses.map((expense) => (
+                        <ExpenseCard
+                          key={`report-expense-${expense.id}`}
+                          expense={expense}
+                          onEdit={handleEditExpense}
+                          onDelete={handleDeleteExpense}
+                          showActions={false}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
+                      Nuk ka shpenzime për filtrin aktual.
+                    </div>
+                  )}
+                </section>
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-white/5 text-slate-300">
-                    <tr>
-                      <th className="px-4 py-3">Data</th>
-                      <th className="px-4 py-3">Lloji</th>
-                      <th className="px-4 py-3">Përshkrimi</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reportHistoryRows.map((row) => (
-                      <tr key={row.id} className="border-t border-white/5">
-                        <td className="px-4 py-3 text-slate-300">{formatDate(row.date)}</td>
-                        <td className="px-4 py-3 text-slate-300">{row.source}</td>
-                        <td className="px-4 py-3 text-white">{row.label}</td>
-                      </tr>
-                    ))}
-                    {reportHistoryRows.length === 0 && (
-                      <tr>
-                        <td className="px-4 py-6 text-center text-slate-400" colSpan={3}>
-                          Nuk ka histori për filtrin aktual.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            ) : (
+              <section className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-lg font-bold">Historia e plotë</h3>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-300">
+                    {reportHistoryRows.length} rreshta
+                  </span>
+                </div>
+
+                {latestReportRows.length > 0 && (
+                  <div className="rounded-2xl border border-mint/20 bg-gradient-to-r from-mint/10 to-emerald-500/5 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-mint">Të rejat</p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-3">
+                      {latestReportRows.map((row) => {
+                        const kindBadgeClass =
+                          row.kind === "documents"
+                            ? "border-blue-400/30 bg-blue-500/10 text-blue-200"
+                            : row.kind === "services"
+                              ? "border-amber-400/30 bg-amber-500/10 text-amber-200"
+                              : "border-purple-400/30 bg-purple-500/10 text-purple-200";
+
+                        return (
+                          <article key={`latest-${row.id}`} className="rounded-xl border border-white/10 bg-deep/40 p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${kindBadgeClass}`}>
+                                {row.source}
+                              </span>
+                              <span className="text-xs text-slate-400">{formatDate(row.date)}</span>
+                            </div>
+                            <p className="mt-2 line-clamp-2 text-sm font-semibold text-white">{row.label}</p>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {reportHistoryRows.length > 0 ? (
+                  <div className="grid gap-3">
+                    {reportHistoryRows.map((row) => {
+                      const kindBadgeClass =
+                        row.kind === "documents"
+                          ? "border-blue-400/30 bg-blue-500/10 text-blue-200"
+                          : row.kind === "services"
+                            ? "border-amber-400/30 bg-amber-500/10 text-amber-200"
+                            : "border-purple-400/30 bg-purple-500/10 text-purple-200";
+
+                      return (
+                        <article
+                          key={row.id}
+                          className="rounded-xl border border-white/10 bg-deep/35 p-4 transition hover:border-white/20"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${kindBadgeClass}`}>
+                                  {row.source}
+                                </span>
+                                <span className="text-xs text-slate-400">{formatDate(row.date)}</span>
+                              </div>
+                              <p className="mt-2 text-sm font-semibold text-white">{row.label}</p>
+                            </div>
+                            {typeof row.amount === "number" ? (
+                              <span className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-mint">
+                                {formatCurrency(row.amount)}
+                              </span>
+                            ) : null}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-white/10 bg-deep/30 p-6 text-center text-sm text-slate-400">
+                    Nuk ka histori për filtrin aktual.
+                  </div>
+                )}
+              </section>
+            )}
           </div>
         )}
       </div>
@@ -1734,13 +2060,11 @@ function VehicleDashboardPage() {
 // Sub-components
 
 function StatCard({
-  icon,
   label,
   value,
   sublabel,
   color
 }: {
-  icon: string;
   label: string;
   value: string;
   sublabel: string;
@@ -1756,10 +2080,7 @@ function StatCard({
 
   return (
     <div className={`rounded-2xl border bg-gradient-to-br p-5 ${colorClasses[color]}`}>
-      <div className="flex items-center gap-3">
-        <span className="text-2xl">{icon}</span>
-        <span className="text-sm text-slate-400">{label}</span>
-      </div>
+      <div className="text-sm text-slate-400">{label}</div>
       <p className="mt-3 text-2xl font-bold">{value}</p>
       <p className="mt-1 text-xs text-slate-400">{sublabel}</p>
     </div>
@@ -1780,12 +2101,9 @@ function DocumentRow({ document }: { document: DocumentRow }) {
 
   return (
     <div className="flex items-center justify-between rounded-xl border border-white/10 bg-deep/30 p-3">
-      <div className="flex items-center gap-3">
-        <span className="text-lg">{docType.icon}</span>
-        <div>
-          <p className="font-medium">{docType.label}</p>
-          <p className="text-xs text-slate-400">{formatDate(document.expires_on)}</p>
-        </div>
+      <div>
+        <p className="font-medium">{docType.label}</p>
+        <p className="text-xs text-slate-400">{formatDate(document.expires_on)}</p>
       </div>
       <span className={`text-sm font-semibold ${statusColors[status.color as keyof typeof statusColors]}`}>
         {status.label}
@@ -1794,7 +2112,17 @@ function DocumentRow({ document }: { document: DocumentRow }) {
   );
 }
 
-function DocumentCard({ document }: { document: DocumentRow }) {
+function DocumentCard({
+  document,
+  onEdit,
+  onDelete,
+  showActions = false
+}: {
+  document: DocumentRow;
+  onEdit: (document: DocumentRow) => void;
+  onDelete: (document: DocumentRow) => void;
+  showActions?: boolean;
+}) {
   const status = getDocumentStatus(document.expires_on);
   const docType = DOCUMENT_TYPES[document.document_type] || DOCUMENT_TYPES.other;
   const reportStatus = getDocumentReportStatus(document.expires_on);
@@ -1809,21 +2137,41 @@ function DocumentCard({ document }: { document: DocumentRow }) {
 
   return (
     <div className={`rounded-2xl border bg-gradient-to-br p-5 ${bgColors[status.color as keyof typeof bgColors]}`}>
-      <div className="flex items-start justify-between">
-        <span className="text-3xl">{docType.icon}</span>
-        <span
-          className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-            status.color === "red"
-              ? "bg-red-500/20 text-red-300"
-              : status.color === "amber"
-                ? "bg-amber-500/20 text-amber-300"
-                : status.color === "emerald"
-                  ? "bg-emerald-500/20 text-emerald-300"
-                  : "bg-slate-500/20 text-slate-300"
-          }`}
-        >
-          {status.label}
-        </span>
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-sm font-semibold text-slate-300">{docType.label}</span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+              status.color === "red"
+                ? "bg-red-500/20 text-red-300"
+                : status.color === "amber"
+                  ? "bg-amber-500/20 text-amber-300"
+                  : status.color === "emerald"
+                    ? "bg-emerald-500/20 text-emerald-300"
+                    : "bg-slate-500/20 text-slate-300"
+            }`}
+          >
+            {status.label}
+          </span>
+          {showActions ? (
+            <>
+              <button
+                type="button"
+                onClick={() => onEdit(document)}
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
+              >
+                Editoje
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(document)}
+                className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/20"
+              >
+                Fshije
+              </button>
+            </>
+          ) : null}
+        </div>
       </div>
       <h4 className="mt-4 font-display text-lg font-bold">{document.reference_number || docType.label}</h4>
       <div className="mt-3 space-y-1 text-sm text-slate-400">
@@ -1844,12 +2192,9 @@ function DocumentCard({ document }: { document: DocumentRow }) {
 function ServiceRow({ service }: { service: ServiceRecordRow }) {
   return (
     <div className="flex items-center justify-between rounded-xl border border-white/10 bg-deep/30 p-3">
-      <div className="flex items-center gap-3">
-        <span className="text-lg">🔧</span>
-        <div>
-          <p className="font-medium">{service.service_type}</p>
-          <p className="text-xs text-slate-400">{formatDate(service.service_date)}</p>
-        </div>
+      <div>
+        <p className="font-medium">{service.service_type}</p>
+        <p className="text-xs text-slate-400">{formatDate(service.service_date)}</p>
       </div>
       <span className="font-semibold text-mint">{formatCurrency(service.cost)}</span>
     </div>
@@ -1859,11 +2204,13 @@ function ServiceRow({ service }: { service: ServiceRecordRow }) {
 function ServiceCard({
   service,
   onEdit,
-  onDelete
+  onDelete,
+  showActions = true
 }: {
   service: ServiceRecordRow;
   onEdit: (service: ServiceRecordRow) => void;
   onDelete: (service: ServiceRecordRow) => void;
+  showActions?: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-5">
@@ -1872,37 +2219,39 @@ function ServiceCard({
           <h4 className="font-display text-lg font-bold">{service.service_type}</h4>
           <p className="text-sm text-slate-400">{formatDate(service.service_date)}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onEdit(service)}
-            className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
-          >
-            Editoje
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(service)}
-            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/20"
-          >
-            Fshije
-          </button>
-        </div>
+        {showActions ? (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onEdit(service)}
+              className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
+            >
+              Editoje
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(service)}
+              className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/20"
+            >
+              Fshije
+            </button>
+          </div>
+        ) : null}
       </div>
       <div className="mt-4 flex flex-wrap gap-2 text-xs">
         {service.provider && (
           <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
-            📍 {service.provider}
+            {service.provider}
           </span>
         )}
         {service.mileage && (
           <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
-            🛣️ {service.mileage.toLocaleString("sq-AL")} km
+            {service.mileage.toLocaleString("sq-AL")} km
           </span>
         )}
         {service.next_service_due_at && (
           <span className="rounded-full border border-mint/20 bg-mint/10 px-2.5 py-1 text-mint">
-            📅 Tjetra: {formatDate(service.next_service_due_at)}
+            Tjetra: {formatDate(service.next_service_due_at)}
           </span>
         )}
       </div>
@@ -1911,11 +2260,20 @@ function ServiceCard({
   );
 }
 
-function ExpenseCard({ expense }: { expense: ExpenseRow }) {
+function ExpenseCard({
+  expense,
+  onEdit,
+  onDelete,
+  showActions = false
+}: {
+  expense: ExpenseRow;
+  onEdit: (expense: ExpenseRow) => void;
+  onDelete: (expense: ExpenseRow) => void;
+  showActions?: boolean;
+}) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-white/10 bg-slate-900/50 p-4">
-      <div className="flex items-center gap-4">
-        <span className="text-2xl">💰</span>
+    <div className="rounded-xl border border-white/10 bg-slate-900/50 p-4">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-semibold">{expense.category}</p>
           <p className="text-xs text-slate-400">
@@ -1923,8 +2281,28 @@ function ExpenseCard({ expense }: { expense: ExpenseRow }) {
             {expense.vendor && ` • ${expense.vendor}`}
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-bold text-mint">{formatCurrency(expense.amount)}</span>
+          {showActions ? (
+            <>
+              <button
+                type="button"
+                onClick={() => onEdit(expense)}
+                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
+              >
+                Editoje
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(expense)}
+                className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/20"
+              >
+                Fshije
+              </button>
+            </>
+          ) : null}
+        </div>
       </div>
-      <span className="text-lg font-bold text-mint">{formatCurrency(expense.amount)}</span>
     </div>
   );
 }

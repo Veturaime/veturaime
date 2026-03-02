@@ -589,19 +589,19 @@ export async function getVehicleDashboardData(carId: string): Promise<VehicleDas
       .select("*")
       .eq("car_id", carId)
       .eq("owner_id", userId)
-      .order("expires_on", { ascending: true, nullsFirst: false }),
+      .order("created_at", { ascending: false }),
     supabase
       .from("service_records")
       .select("*")
       .eq("car_id", carId)
       .eq("owner_id", userId)
-      .order("service_date", { ascending: false }),
+      .order("created_at", { ascending: false }),
     supabase
       .from("expenses")
       .select("*")
       .eq("car_id", carId)
       .eq("owner_id", userId)
-      .order("expense_date", { ascending: false })
+      .order("created_at", { ascending: false })
   ]);
 
   throwQueryError(carResult.error);
@@ -715,6 +715,18 @@ export async function createServiceRecord(
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (typeof data?.mileage === "number" && Number.isFinite(data.mileage)) {
+    const { error: mileageUpdateError } = await supabase
+      .from("cars")
+      .update({ mileage: data.mileage })
+      .eq("id", data.car_id)
+      .eq("owner_id", userId);
+
+    if (mileageUpdateError) {
+      throw new Error(mileageUpdateError.message);
+    }
   }
 
   return data as ServiceRecordRow;

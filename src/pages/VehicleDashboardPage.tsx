@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { DocumentRow, ExpenseRow, NotificationRow, ServiceRecordRow } from "../lib/database.types";
+import type { DocumentRow, ExpenseRow, ServiceRecordRow } from "../lib/database.types";
 import {
   createDocument,
   createExpense,
@@ -8,12 +8,8 @@ import {
   deleteDocument,
   deleteExpense,
   deleteServiceRecord,
-  getNotifications,
   getVehicleDashboardData,
-  markAllNotificationsRead,
-  markNotificationRead,
   supabase,
-  syncDueNotifications,
   updateDocument,
   updateExpense,
   updateServiceRecord,
@@ -134,6 +130,12 @@ const SERVICE_KIND_OPTIONS: Array<{ value: ServiceKind; label: string }> = [
   { value: "other", label: "Tjera" }
 ];
 
+const OIL_CHANGE_LABEL = SERVICE_KIND_OPTIONS.find((option) => option.value === "oil_change")?.label ?? "Ndërrim vaji + filtra";
+
+function isOilChangeServiceType(serviceType: string) {
+  return serviceType.trim().toLowerCase() === OIL_CHANGE_LABEL.toLowerCase();
+}
+
 const EXPENSE_KIND_OPTIONS: Array<{ value: ExpenseKind; label: string }> = [
   { value: "fuel", label: "Karburant" },
   { value: "service", label: "Servis/ mirëmbajtje" },
@@ -168,6 +170,12 @@ function buildNotes(baseNotes: string, details: Array<[string, string | null | u
   if (!cleanBase && detailLines.length === 0) return null;
 
   return [cleanBase, ...detailLines].filter(Boolean).join("\n");
+}
+
+function extractFirstUrl(value: string | null) {
+  if (!value) return null;
+  const match = value.match(/https?:\/\/[^\s]+/i);
+  return match?.[0] ?? null;
 }
 
 function getYear(dateValue: string | null) {
@@ -235,12 +243,9 @@ function VehicleDashboardPage() {
   const navigate = useNavigate();
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
   const [data, setData] = useState<VehicleDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
-  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [carImage, setCarImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -282,33 +287,14 @@ function VehicleDashboardPage() {
   const [expenseNotes, setExpenseNotes] = useState("");
   const [expenseReceiptFile, setExpenseReceiptFile] = useState<File | null>(null);
 
-  const [reportYear, setReportYear] = useState<string>(String(currentYear));
-  const [reportMonth, setReportMonth] = useState<string>(String(currentMonth));
+  const [reportYear, setReportYear] = useState<string>("all");
+  const [reportMonth, setReportMonth] = useState<string>("all");
   const [reportEventFilter, setReportEventFilter] = useState<ReportEventFilter>("all");
+  const [showReportMileage, setShowReportMileage] = useState(true);
+  const [showOverviewAlert, setShowOverviewAlert] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
-
-    const loadNotificationsForCar = async (targetCarId: string) => {
-      setNotificationsLoading(true);
-
-      try {
-        await syncDueNotifications(targetCarId);
-        const inbox = await getNotifications({ carId: targetCarId, includeRead: true, limit: 20 });
-
-        if (isMounted) {
-          setNotifications(inbox);
-        }
-      } catch {
-        if (isMounted) {
-          setNotifications([]);
-        }
-      } finally {
-        if (isMounted) {
-          setNotificationsLoading(false);
-        }
-      }
-    };
 
     const loadData = async () => {
       if (!carId) {
@@ -332,7 +318,6 @@ function VehicleDashboardPage() {
         if (!isMounted) return;
 
         setData(dashboardData);
-        await loadNotificationsForCar(carId);
 
         // Fetch car image
         const car = dashboardData.car;
@@ -395,9 +380,64 @@ function VehicleDashboardPage() {
     return data.serviceRecords.filter((s) => !s.deleted_at).reduce((sum, s) => sum + Number(s.cost), 0);
   }, [data]);
 
-  const nextService = useMemo(() => {
-    if (!data) return null;
-    return data.serviceRecords.find((s) => !s.deleted_at && s.next_service_due_at);
+  const overviewNotifications = useMemo(() => {
+    if (!data) return [];
+
+    const documentAlerts = data.documents
+      .map((document) => {
+        const days = getDaysUntil(document.expires_on);
+        if (days === null || days > 30) return null;
+
+        return {
+          id: `document-${document.id}`,
+          kind: "documents" as const,
+          title: DOCUMENT_TYPES[document.document_type]?.label ?? document.document_type,
+          subtitle: `Skadon: ${formatDate(document.expires_on)}`,
+          badge: days < 0 ? "Skaduar" : `${days} ditë`,
+          dueDate: document.expires_on ?? document.created_at
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+
+    const serviceAlerts = data.serviceRecords
+      .filter((service) => !service.deleted_at && Boolean(service.next_service_due_at))
+      .map((service) => {
+        const days = getDaysUntil(service.next_service_due_at);
+        if (days === null || days > 30) return null;
+
+        return {
+          id: `service-${service.id}`,
+          kind: "services" as const,
+          title: service.service_type,
+          subtitle: `Afati: ${formatDate(service.next_service_due_at)}`,
+          badge: days < 0 ? "Kaluar" : days === 0 ? "Sot" : `${days} ditë`,
+          dueDate: service.next_service_due_at ?? service.service_date
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+
+    return [...documentAlerts, ...serviceAlerts].sort(
+      (left, right) => new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime()
+    );
+  }, [data]);
+
+  const overviewNotificationCount = overviewNotifications.length;
+
+  const recentDocuments = useMemo(() => {
+    if (!data) return [];
+
+    return [...data.documents]
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+      .slice(0, 1);
+  }, [data]);
+
+  const recentServices = useMemo(() => {
+    if (!data) return [];
+
+    return data.serviceRecords
+      .filter((service) => !service.deleted_at)
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+      .slice(0, 1);
   }, [data]);
 
   const documentFilterStats = useMemo(() => {
@@ -474,6 +514,7 @@ function VehicleDashboardPage() {
     if (!data) return [];
 
     return data.serviceRecords.filter((service) => {
+      if (service.deleted_at) return false;
       const year = getYear(service.service_date);
       const month = getMonth(service.service_date);
       const yearMatch = reportYear === "all" || year === Number(reportYear);
@@ -567,43 +608,6 @@ function VehicleDashboardPage() {
     if (!carId) return;
     const freshData = await getVehicleDashboardData(carId);
     setData(freshData);
-
-    setNotificationsLoading(true);
-    try {
-      await syncDueNotifications(carId);
-      const inbox = await getNotifications({ carId, includeRead: true, limit: 20 });
-      setNotifications(inbox);
-    } catch {
-      setNotifications([]);
-    } finally {
-      setNotificationsLoading(false);
-    }
-  };
-
-  const unreadNotificationCount = useMemo(() => {
-    return notifications.filter((notification) => !notification.read_at).length;
-  }, [notifications]);
-
-  const handleMarkNotificationRead = async (notificationId: string) => {
-    try {
-      await markNotificationRead(notificationId);
-      await refreshData();
-    } catch (actionError) {
-      setFormError(actionError instanceof Error ? actionError.message : "Përditësimi i reminder-it dështoi.");
-    }
-  };
-
-  const handleMarkAllNotificationsRead = async () => {
-    if (!carId) {
-      return;
-    }
-
-    try {
-      await markAllNotificationsRead(carId);
-      await refreshData();
-    } catch (actionError) {
-      setFormError(actionError instanceof Error ? actionError.message : "Përditësimi i reminder-ave dështoi.");
-    }
   };
 
   const handleCreateDocument = async (event: FormEvent<HTMLFormElement>) => {
@@ -684,6 +688,24 @@ function VehicleDashboardPage() {
       const selectedServiceLabel = SERVICE_KIND_OPTIONS.find((option) => option.value === serviceType)?.label ?? "Servis";
       const serviceLabel = serviceType === "other" ? otherServiceCustomLabel.trim() || "Tjera" : selectedServiceLabel;
 
+      if (serviceType === "oil_change" && !serviceMileage.trim()) {
+        throw new Error("Shkruaje kilometrazhin aktual për këtë servis.");
+      }
+
+      const normalizedServiceMileage = serviceType === "oil_change" && serviceMileage.trim() ? Number(serviceMileage) : null;
+
+      if (normalizedServiceMileage !== null) {
+        if (!Number.isFinite(normalizedServiceMileage) || normalizedServiceMileage < 0) {
+          throw new Error("Kilometrazhi i servisimit duhet të jetë numër valid.");
+        }
+
+        if (typeof data.car.mileage === "number" && normalizedServiceMileage < data.car.mileage) {
+          throw new Error(
+            `Kilometrazhi i servisimit nuk mund të jetë më i vogël se kilometrazhi i regjistrimit (${data.car.mileage.toLocaleString("sq-AL")} km).`
+          );
+        }
+      }
+
       const details: Array<[string, string | null]> = [];
 
       if (serviceType === "oil_change") {
@@ -730,7 +752,7 @@ function VehicleDashboardPage() {
         service_type: serviceLabel,
         provider: serviceType === "other" ? serviceProvider.trim() || null : null,
         cost: serviceType === "other" ? (serviceCost ? Number(serviceCost) : 0) : 0,
-        mileage: serviceType === "oil_change" || serviceType === "other" ? (serviceMileage ? Number(serviceMileage) : null) : null,
+        mileage: normalizedServiceMileage,
         notes: buildNotes(serviceNotes, details),
         next_service_due_at: serviceType === "other" ? serviceNextDate || null : null
       });
@@ -939,6 +961,38 @@ function VehicleDashboardPage() {
 
   const { car, documents, serviceRecords, expenses } = data;
   const activeServiceRecords = serviceRecords.filter((service) => !service.deleted_at);
+  const mileageServiceRows = activeServiceRecords
+    .filter((service) => isOilChangeServiceType(service.service_type) && typeof service.mileage === "number")
+    .sort((left, right) => {
+      const byServiceDate = new Date(right.service_date).getTime() - new Date(left.service_date).getTime();
+      if (byServiceDate !== 0) return byServiceDate;
+      return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+    });
+  const latestServiceWithMileage = mileageServiceRows[0] ?? null;
+  const registrationMileage = car.mileage;
+  const currentMileage = latestServiceWithMileage?.mileage ?? (typeof car.mileage === "number" ? car.mileage : null);
+  const mileageDifference =
+    typeof registrationMileage === "number" && typeof currentMileage === "number"
+      ? currentMileage - registrationMileage
+      : null;
+  const mileageTimelineRows = [
+    ...(typeof registrationMileage === "number"
+      ? [
+          {
+            id: "registration",
+            date: car.created_at,
+            label: "Regjistrimi i veturës",
+            mileage: registrationMileage
+          }
+        ]
+      : []),
+    ...mileageServiceRows.map((service) => ({
+        id: service.id,
+        date: service.service_date,
+        label: service.service_type,
+        mileage: service.mileage as number
+      }))
+  ].sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
   const colorInfo = COLORS.find((c) => c.value === car.color);
   const bodyTypeInfo = BODY_TYPES.find((b) => b.value === car.body_type);
   const fuelTypeInfo = FUEL_TYPES.find((f) => f.value === car.fuel_type);
@@ -1036,9 +1090,9 @@ function VehicleDashboardPage() {
 
             {/* Quick stats */}
             <div className="flex gap-4">
-              {car.mileage && (
+              {typeof currentMileage === "number" && (
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center">
-                  <p className="text-2xl font-bold text-white">{car.mileage.toLocaleString("sq-AL")}</p>
+                  <p className="text-2xl font-bold text-white">{currentMileage.toLocaleString("sq-AL")}</p>
                   <p className="text-xs text-slate-400">km</p>
                 </div>
               )}
@@ -1063,10 +1117,6 @@ function VehicleDashboardPage() {
                 type="button"
                 onClick={() => {
                   setActiveTab(tab.key);
-                  if (tab.key === "reports") {
-                    setReportYear(String(currentYear));
-                    setReportMonth(String(currentMonth));
-                  }
                 }}
                 className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
                   activeTab === tab.key
@@ -1087,7 +1137,7 @@ function VehicleDashboardPage() {
         {activeTab === "overview" && (
           <div className="space-y-8">
             {/* Urgent alerts */}
-            {urgentDocuments.length > 0 && (
+            {urgentDocuments.length > 0 && showOverviewAlert && (
               <section className="rounded-3xl border border-red-500/20 bg-gradient-to-br from-red-500/10 to-red-900/5 p-6">
                 <div className="flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-red-400" />
@@ -1150,66 +1200,13 @@ function VehicleDashboardPage() {
                 color="purple"
               />
               <StatCard
-                label="Planifikime / Reminder"
-                value={String(unreadNotificationCount)}
-                sublabel={nextService?.service_type || "Mesazhe të paread"}
+                label="Njoftime"
+                value={String(overviewNotificationCount)}
+                sublabel={overviewNotificationCount > 0 ? "Njoftime aktive" : "Nuk ka njoftime"}
                 color="slate"
+                onClick={() => setShowOverviewAlert((previous) => !previous)}
               />
             </div>
-
-            <section className="rounded-3xl border border-white/10 bg-slate-900/50 p-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-display text-lg font-bold">Reminder inbox</h3>
-                  <p className="text-sm text-slate-400">Mesazhe për këtë veturë (dokumente + servisime)</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleMarkAllNotificationsRead}
-                  disabled={notificationsLoading || unreadNotificationCount === 0}
-                  className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Shëno të gjitha si read
-                </button>
-              </div>
-
-              <div className="mt-4 space-y-3">
-                {notificationsLoading ? (
-                  <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
-                    Duke ngarkuar reminders...
-                  </div>
-                ) : notifications.length > 0 ? (
-                  notifications.slice(0, 8).map((notification) => (
-                    <article
-                      key={notification.id}
-                      className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 bg-deep/30 p-4"
-                    >
-                      <div>
-                        <p className="font-semibold text-white">{notification.message}</p>
-                        <p className="mt-1 text-xs text-slate-400">Afati: {formatDate(notification.due_at)}</p>
-                      </div>
-                      {notification.read_at ? (
-                        <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-200">
-                          Read
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => void handleMarkNotificationRead(notification.id)}
-                          className="rounded-full border border-mint/30 bg-mint/10 px-3 py-1 text-xs font-semibold text-mint"
-                        >
-                          Shëno read
-                        </button>
-                      )}
-                    </article>
-                  ))
-                ) : (
-                  <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
-                    Nuk ka reminders aktive për këtë veturë.
-                  </div>
-                )}
-              </div>
-            </section>
 
             {/* Recent activity */}
             <div className="grid gap-6 lg:grid-cols-2">
@@ -1226,7 +1223,7 @@ function VehicleDashboardPage() {
                   </button>
                 </div>
                 <div className="mt-4 space-y-3">
-                  {documents.slice(0, 4).map((doc) => (
+                  {recentDocuments.map((doc) => (
                     <DocumentRow key={doc.id} document={doc} />
                   ))}
                   {documents.length === 0 && (
@@ -1250,7 +1247,7 @@ function VehicleDashboardPage() {
                   </button>
                 </div>
                 <div className="mt-4 space-y-3">
-                  {activeServiceRecords.slice(0, 4).map((service) => (
+                  {recentServices.map((service) => (
                     <ServiceRow key={service.id} service={service} />
                   ))}
                   {activeServiceRecords.length === 0 && (
@@ -1434,17 +1431,16 @@ function VehicleDashboardPage() {
                   </label>
                 )}
 
-                {(documentType === "invoice" || documentType === "manual" || documentType === "authorization" || documentType === "registration" || documentType === "insurance") && (
-                  <label className="block text-sm text-slate-300">
-                    Upload file (PDF/foto)
-                    <input
-                      type="file"
-                      accept=".pdf,image/*"
-                      onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
-                      className="mt-1 block w-full text-sm text-slate-300"
-                    />
-                  </label>
-                )}
+                <label className="block text-sm text-slate-300">
+                  Upload file (PDF/foto)
+                  <input
+                    type="file"
+                    accept=".pdf,image/*"
+                    onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
+                    className="mt-1 block w-full text-sm text-slate-300"
+                  />
+                  {documentFile && <span className="mt-1 block text-xs text-slate-400">Zgjedhur: {documentFile.name}</span>}
+                </label>
 
                 {formError && <p className="text-sm text-red-300">{formError}</p>}
 
@@ -1522,14 +1518,15 @@ function VehicleDashboardPage() {
                     />
                   </label>
 
-                  {(serviceType === "oil_change" || serviceType === "other") && (
+                  {serviceType === "oil_change" && (
                     <label className="text-sm text-slate-300">
                       KM në atë moment
                       <input
                         type="number"
-                        min={0}
+                        min={Math.max(0, registrationMileage ?? 0)}
                         value={serviceMileage}
                         onChange={(event) => setServiceMileage(event.target.value)}
+                        required
                         className="mt-1 w-full rounded-xl border border-white/10 bg-deep px-3 py-2 text-white"
                       />
                     </label>
@@ -1889,6 +1886,82 @@ function VehicleDashboardPage() {
                   <option value="expenses">Shpenzime</option>
                 </select>
               </label>
+
+              <button
+                type="button"
+                onClick={() => setShowReportMileage((previous) => !previous)}
+                className="rounded-xl border border-white/10 bg-deep px-4 py-2 text-sm font-semibold text-white transition hover:border-mint/40 hover:text-mint"
+              >
+                {showReportMileage ? "Fshih km" : "Kilometrazhi"}
+              </button>
+
+              {showReportMileage && (
+                <section className="mt-2 w-full rounded-2xl border border-mint/20 bg-gradient-to-r from-mint/10 to-emerald-500/5 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-display text-lg font-bold">Kilometrazhi i veturës</h3>
+                      <p className="text-xs text-slate-400">Ruhet automatikisht nga regjistrimi dhe servisimet</p>
+                    </div>
+                    {typeof mileageDifference === "number" && (
+                      <span className="rounded-lg border border-mint/20 bg-mint/10 px-2.5 py-1 text-xs font-semibold text-mint">
+                        {mileageDifference >= 0 ? "+" : ""}
+                        {mileageDifference.toLocaleString("sq-AL")} km nga regjistrimi
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <article className="rounded-xl border border-white/10 bg-deep/35 p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-slate-400">KM në regjistrim</p>
+                      <p className="mt-1 text-lg font-bold text-white">
+                        {typeof registrationMileage === "number" ? `${registrationMileage.toLocaleString("sq-AL")} km` : "—"}
+                      </p>
+                    </article>
+
+                    <article className="rounded-xl border border-white/10 bg-deep/35 p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-slate-400">KM aktuale</p>
+                      <p className="mt-1 text-lg font-bold text-white">
+                        {typeof currentMileage === "number" ? `${currentMileage.toLocaleString("sq-AL")} km` : "—"}
+                      </p>
+                    </article>
+
+                    <article className="rounded-xl border border-white/10 bg-deep/35 p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-slate-400">Përditësimi i fundit</p>
+                      <p className="mt-1 text-sm font-semibold text-white">
+                        {latestServiceWithMileage ? formatDate(latestServiceWithMileage.service_date) : "Nga regjistrimi"}
+                      </p>
+                    </article>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-white/10 bg-deep/30 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Historia e kilometrave</p>
+                      <span className="text-xs text-slate-500">{mileageTimelineRows.length} hyrje</span>
+                    </div>
+
+                    {mileageTimelineRows.length > 0 ? (
+                      <div className="space-y-2">
+                        {mileageTimelineRows.map((row) => (
+                          <article
+                            key={`mileage-row-${row.id}`}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2"
+                          >
+                            <div>
+                              <p className="text-sm font-semibold text-white">{row.label}</p>
+                              <p className="text-xs text-slate-400">{formatDate(row.date)}</p>
+                            </div>
+                            <span className="rounded-lg border border-white/10 bg-deep/40 px-2.5 py-1 text-xs font-semibold text-mint">
+                              {row.mileage.toLocaleString("sq-AL")} km
+                            </span>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-400">Nuk ka hyrje të kilometrave ende.</p>
+                    )}
+                  </div>
+                </section>
+              )}
             </div>
 
             {reportEventFilter === "all" ? (
@@ -2063,12 +2136,14 @@ function StatCard({
   label,
   value,
   sublabel,
-  color
+  color,
+  onClick
 }: {
   label: string;
   value: string;
   sublabel: string;
   color: "mint" | "blue" | "purple" | "amber" | "slate";
+  onClick?: () => void;
 }) {
   const colorClasses = {
     mint: "from-mint/10 to-emerald-500/5 border-mint/20",
@@ -2078,8 +2153,22 @@ function StatCard({
     slate: "from-slate-500/10 to-slate-900/5 border-slate-500/20"
   };
 
+  const className = `rounded-2xl border bg-gradient-to-br p-5 ${colorClasses[color]} ${
+    onClick ? "cursor-pointer transition hover:border-mint/30" : ""
+  }`;
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        <div className="text-left text-sm text-slate-400">{label}</div>
+        <p className="mt-3 text-left text-2xl font-bold">{value}</p>
+        <p className="mt-1 text-left text-xs text-slate-400">{sublabel}</p>
+      </button>
+    );
+  }
+
   return (
-    <div className={`rounded-2xl border bg-gradient-to-br p-5 ${colorClasses[color]}`}>
+    <div className={className}>
       <div className="text-sm text-slate-400">{label}</div>
       <p className="mt-3 text-2xl font-bold">{value}</p>
       <p className="mt-1 text-xs text-slate-400">{sublabel}</p>
@@ -2103,7 +2192,12 @@ function DocumentRow({ document }: { document: DocumentRow }) {
     <div className="flex items-center justify-between rounded-xl border border-white/10 bg-deep/30 p-3">
       <div>
         <p className="font-medium">{docType.label}</p>
-        <p className="text-xs text-slate-400">{formatDate(document.expires_on)}</p>
+        {document.expires_on && <p className="text-xs text-slate-400">{formatDate(document.expires_on)}</p>}
+        {document.file_url && (
+          <a href={document.file_url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-mint hover:underline">
+            Hap skedarin
+          </a>
+        )}
       </div>
       <span className={`text-sm font-semibold ${statusColors[status.color as keyof typeof statusColors]}`}>
         {status.label}
@@ -2176,7 +2270,7 @@ function DocumentCard({
       <h4 className="mt-4 font-display text-lg font-bold">{document.reference_number || docType.label}</h4>
       <div className="mt-3 space-y-1 text-sm text-slate-400">
         <p>Lloji: {docType.label}</p>
-        <p>Skadon: {formatDate(document.expires_on)}</p>
+        {document.expires_on && <p>Skadon: {formatDate(document.expires_on)}</p>}
         <p>Statusi: {reportStatus === "expired" ? "Skaduar" : reportStatus === "expiring" ? "Po skadon" : "OK"}</p>
         {document.issuer && <p>Lëshuar nga: {document.issuer}</p>}
         {document.file_url && (
@@ -2244,7 +2338,7 @@ function ServiceCard({
             {service.provider}
           </span>
         )}
-        {service.mileage && (
+        {isOilChangeServiceType(service.service_type) && service.mileage && (
           <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
             {service.mileage.toLocaleString("sq-AL")} km
           </span>
@@ -2271,6 +2365,8 @@ function ExpenseCard({
   onDelete: (expense: ExpenseRow) => void;
   showActions?: boolean;
 }) {
+  const receiptUrl = extractFirstUrl(expense.notes);
+
   return (
     <div className="rounded-xl border border-white/10 bg-slate-900/50 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -2303,6 +2399,17 @@ function ExpenseCard({
           ) : null}
         </div>
       </div>
+      {expense.notes && <p className="mt-3 text-sm text-slate-400 whitespace-pre-line">{expense.notes}</p>}
+      {receiptUrl && (
+        <a
+          href={receiptUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 inline-flex text-sm font-semibold text-mint hover:underline"
+        >
+          Hap foton/kuponin
+        </a>
+      )}
     </div>
   );
 }

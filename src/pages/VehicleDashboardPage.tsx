@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { jsPDF } from "jspdf";
 import type { DocumentRow, ExpenseRow, ServiceRecordRow } from "../lib/database.types";
 import {
   createDocument,
@@ -236,6 +237,16 @@ function formatIsoToDmy(value: string) {
   return `${day}/${month}/${year}`;
 }
 
+function sanitizePdfFilePart(value: string) {
+  const clean = value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+
+  return clean || "vetura";
+}
+
 type Tab = "overview" | "documents" | "services" | "expenses" | "reports";
 
 function VehicleDashboardPage() {
@@ -290,8 +301,16 @@ function VehicleDashboardPage() {
   const [reportYear, setReportYear] = useState<string>("all");
   const [reportMonth, setReportMonth] = useState<string>("all");
   const [reportEventFilter, setReportEventFilter] = useState<ReportEventFilter>("all");
-  const [showReportMileage, setShowReportMileage] = useState(true);
+  const [showReportMileage, setShowReportMileage] = useState(false);
   const [showOverviewAlert, setShowOverviewAlert] = useState(true);
+
+  const handleTabChange = (nextTab: Tab) => {
+    if (activeTab === nextTab || saving) {
+      return;
+    }
+
+    setActiveTab(nextTab);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -579,12 +598,303 @@ function VehicleDashboardPage() {
     return reportHistoryRows.slice(0, 3);
   }, [reportEventFilter, reportHistoryRows]);
 
+  const hasAnyReportData = reportDocuments.length > 0 || reportServices.length > 0 || reportExpenses.length > 0;
+
+  const downloadReportPdf = (type: "all" | "documents" | "services" | "expenses") => {
+    if (!data) return;
+
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 36;
+    const topY = 36;
+    const bottomY = pageHeight - 38;
+    const contentWidth = pageWidth - marginX * 2;
+    const rowLineHeight = 11;
+    const textPaddingX = 6;
+    let currentY = topY;
+
+    const colors = {
+      pageBg: [248, 250, 252] as const,
+      headerBg: [15, 23, 42] as const,
+      accent: [16, 185, 129] as const,
+      title: [17, 24, 39] as const,
+      body: [51, 65, 85] as const,
+      soft: [241, 245, 249] as const,
+      line: [226, 232, 240] as const,
+      white: [255, 255, 255] as const
+    };
+
+    const drawPageBackground = () => {
+      doc.setFillColor(...colors.pageBg);
+      doc.rect(0, 0, pageWidth, pageHeight, "F");
+    };
+
+    const ensureSpace = (neededHeight: number) => {
+      if (currentY + neededHeight > bottomY) {
+        doc.addPage();
+        drawPageBackground();
+        currentY = topY;
+      }
+    };
+
+    const drawTextBlock = (
+      text: string,
+      x: number,
+      y: number,
+      width: number,
+      options?: { size?: number; bold?: boolean; color?: readonly [number, number, number] }
+    ) => {
+      const size = options?.size ?? 10;
+      doc.setFont("helvetica", options?.bold ? "bold" : "normal");
+      doc.setFontSize(size);
+      if (options?.color) {
+        doc.setTextColor(...options.color);
+      } else {
+        doc.setTextColor(...colors.body);
+      }
+
+      const lines = doc.splitTextToSize(text || "-", width) as string[];
+      doc.text(lines, x, y);
+      return lines.length;
+    };
+
+    const drawSectionHeader = (title: string, count: number) => {
+      ensureSpace(30);
+      doc.setFillColor(...colors.soft);
+      doc.roundedRect(marginX, currentY, contentWidth, 24, 5, 5, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(...colors.title);
+      doc.text(title, marginX + 10, currentY + 15);
+
+      const badge = `${count} rreshta`;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      const badgeWidth = doc.getTextWidth(badge) + 12;
+      const badgeX = marginX + contentWidth - badgeWidth - 8;
+      doc.setFillColor(...colors.white);
+      doc.roundedRect(badgeX, currentY + 5, badgeWidth, 14, 4, 4, "F");
+      doc.setTextColor(...colors.body);
+      doc.text(badge, badgeX + 6, currentY + 15);
+      currentY += 34;
+    };
+
+    const drawTable = (headers: string[], rows: string[][], colWidths: number[]) => {
+      if (rows.length === 0) {
+        ensureSpace(26);
+        doc.setDrawColor(...colors.line);
+        doc.setFillColor(...colors.white);
+        doc.roundedRect(marginX, currentY, contentWidth, 24, 4, 4, "FD");
+        drawTextBlock("Nuk ka të dhëna për filtrin aktual.", marginX + 10, currentY + 15, contentWidth - 20, {
+          size: 9,
+          color: colors.body
+        });
+        currentY += 30;
+        return;
+      }
+
+      const headerHeight = 22;
+      ensureSpace(headerHeight + 8);
+      doc.setFillColor(...colors.headerBg);
+      doc.roundedRect(marginX, currentY, contentWidth, headerHeight, 4, 4, "F");
+
+      let headerX = marginX;
+      headers.forEach((header, index) => {
+        const cellWidth = colWidths[index];
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(...colors.white);
+        doc.text(header, headerX + textPaddingX, currentY + 14);
+        headerX += cellWidth;
+      });
+
+      currentY += headerHeight;
+
+      rows.forEach((row, rowIndex) => {
+        let maxLines = 1;
+        row.forEach((cell, index) => {
+          const lines = doc.splitTextToSize(cell || "-", colWidths[index] - textPaddingX * 2) as string[];
+          if (lines.length > maxLines) {
+            maxLines = lines.length;
+          }
+        });
+
+        const rowHeight = Math.max(22, maxLines * rowLineHeight + 8);
+        ensureSpace(rowHeight + 2);
+
+        doc.setDrawColor(...colors.line);
+        const rowFill = rowIndex % 2 === 0 ? colors.white : colors.soft;
+        doc.setFillColor(rowFill[0], rowFill[1], rowFill[2]);
+        doc.rect(marginX, currentY, contentWidth, rowHeight, "FD");
+
+        let cellX = marginX;
+        row.forEach((cell, index) => {
+          const cellWidth = colWidths[index];
+          if (index > 0) {
+            doc.line(cellX, currentY, cellX, currentY + rowHeight);
+          }
+
+          drawTextBlock(cell || "-", cellX + textPaddingX, currentY + 14, cellWidth - textPaddingX * 2, {
+            size: 9,
+            color: colors.body
+          });
+          cellX += cellWidth;
+        });
+
+        currentY += rowHeight;
+      });
+
+      currentY += 8;
+    };
+
+    const reportYearLabel = reportYear === "all" ? "Të gjitha" : reportYear;
+    const reportMonthLabel = reportMonth === "all" ? "Të gjithë muajt" : REPORT_MONTH_OPTIONS[Number(reportMonth) - 1] ?? "Të gjitha";
+    const carLabel = [data.car.nickname, data.car.make, data.car.model].filter(Boolean).join(" - ") || "Vetura";
+
+    drawPageBackground();
+
+    doc.setFillColor(...colors.headerBg);
+    doc.roundedRect(marginX, currentY, contentWidth, 76, 8, 8, "F");
+    doc.setFillColor(...colors.accent);
+    doc.rect(marginX, currentY + 70, contentWidth, 6, "F");
+
+    drawTextBlock("Raporti i Veturës", marginX + 14, currentY + 24, contentWidth - 28, {
+      size: 16,
+      bold: true,
+      color: colors.white
+    });
+    drawTextBlock(carLabel, marginX + 14, currentY + 42, contentWidth - 28, {
+      size: 11,
+      bold: true,
+      color: colors.white
+    });
+    drawTextBlock(`Filtri: Viti ${reportYearLabel} • Muaji ${reportMonthLabel}`, marginX + 14, currentY + 58, contentWidth - 28, {
+      size: 9,
+      color: colors.white
+    });
+
+    currentY += 92;
+
+    const totalDocuments = reportDocuments.length;
+    const totalServiceAmount = reportServices.reduce((sum, row) => sum + Number(row.cost ?? 0), 0);
+    const totalExpenseAmount = reportExpenses.reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+
+    ensureSpace(48);
+    const cardGap = 10;
+    const cardWidth = (contentWidth - cardGap * 2) / 3;
+    const metricCards = [
+      { title: "Dokumente", value: String(totalDocuments), note: "Rreshta në raport" },
+      { title: "Servisime", value: formatCurrency(totalServiceAmount), note: `${reportServices.length} rreshta` },
+      { title: "Shpenzime", value: formatCurrency(totalExpenseAmount), note: `${reportExpenses.length} rreshta` }
+    ];
+
+    metricCards.forEach((card, index) => {
+      const cardX = marginX + index * (cardWidth + cardGap);
+      doc.setFillColor(...colors.white);
+      doc.setDrawColor(...colors.line);
+      doc.roundedRect(cardX, currentY, cardWidth, 44, 6, 6, "FD");
+      drawTextBlock(card.title, cardX + 8, currentY + 13, cardWidth - 16, { size: 8, color: colors.body });
+      drawTextBlock(card.value, cardX + 8, currentY + 27, cardWidth - 16, { size: 11, bold: true, color: colors.title });
+      drawTextBlock(card.note, cardX + 8, currentY + 38, cardWidth - 16, { size: 7, color: colors.body });
+    });
+
+    currentY += 56;
+
+    if (type === "documents" || type === "all") {
+      drawSectionHeader("Dokumente", reportDocuments.length);
+      drawTable(
+        ["Lloji", "Ref", "Lëshuar", "Skadon", "Statusi"],
+        reportDocuments.map((row) => {
+          const status = getDocumentReportStatus(row.expires_on);
+          return [
+            DOCUMENT_TYPES[row.document_type]?.label ?? row.document_type,
+            row.reference_number ?? "-",
+            formatDate(row.issued_on),
+            formatDate(row.expires_on),
+            status === "expired" ? "Skaduar" : status === "expiring" ? "Po skadon" : "OK"
+          ];
+        }),
+        [contentWidth * 0.28, contentWidth * 0.18, contentWidth * 0.18, contentWidth * 0.18, contentWidth * 0.18]
+      );
+    }
+
+    if (type === "services" || type === "all") {
+      drawSectionHeader("Servisime", reportServices.length);
+      drawTable(
+        ["Servisimi", "Data", "Kosto", "KM", "Ofruesi"],
+        reportServices.map((row) => [
+          row.service_type,
+          formatDate(row.service_date),
+          formatCurrency(Number(row.cost ?? 0)),
+          typeof row.mileage === "number" ? `${row.mileage.toLocaleString("sq-AL")} km` : "-",
+          row.provider ?? "-"
+        ]),
+        [contentWidth * 0.34, contentWidth * 0.16, contentWidth * 0.16, contentWidth * 0.14, contentWidth * 0.2]
+      );
+    }
+
+    if (type === "expenses" || type === "all") {
+      drawSectionHeader("Shpenzime", reportExpenses.length);
+      drawTable(
+        ["Kategoria", "Data", "Shuma", "Furnitori", "Shënime"],
+        reportExpenses.map((row) => [
+          row.category,
+          formatDate(row.expense_date),
+          formatCurrency(Number(row.amount ?? 0)),
+          row.vendor ?? "-",
+          row.notes ?? "-"
+        ]),
+        [contentWidth * 0.2, contentWidth * 0.16, contentWidth * 0.16, contentWidth * 0.18, contentWidth * 0.3]
+      );
+    }
+
+    const pageCount = doc.getNumberOfPages();
+    for (let pageIndex = 1; pageIndex <= pageCount; pageIndex += 1) {
+      doc.setPage(pageIndex);
+      doc.setDrawColor(...colors.line);
+      doc.line(marginX, pageHeight - 26, pageWidth - marginX, pageHeight - 26);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...colors.body);
+      doc.text(
+        `Gjeneruar më ${formatDate(new Date().toISOString())} • Faqja ${pageIndex}/${pageCount}`,
+        marginX,
+        pageHeight - 14
+      );
+    }
+
+    const monthFilePart = reportMonth === "all" ? "te-gjithe-muajt" : sanitizePdfFilePart(reportMonthLabel);
+    const yearFilePart = reportYear === "all" ? "te-gjitha-vitet" : sanitizePdfFilePart(reportYearLabel);
+    const carFilePart = sanitizePdfFilePart(carLabel);
+    const typeFilePart = type === "all" ? "komplet" : type === "documents" ? "dokumente" : type === "services" ? "servisime" : "shpenzime";
+
+    doc.save(`raport-${typeFilePart}-${carFilePart}-${yearFilePart}-${monthFilePart}.pdf`);
+  };
+
   useEffect(() => {
     const option = DOCUMENT_KIND_OPTIONS.find((item) => item.value === documentType);
     if (option) {
       setDocumentTitle(option.label);
     }
   }, [documentType]);
+
+  useEffect(() => {
+    if (documentType === "registration") {
+      return;
+    }
+
+    const normalized = normalizeDateInput(documentIssuedOn);
+
+    if (!normalized) {
+      setDocumentIssuedOn(todayIso);
+      return;
+    }
+
+    if (normalized !== documentIssuedOn) {
+      setDocumentIssuedOn(normalized);
+    }
+  }, [documentIssuedOn, documentType]);
 
   const uploadFileToStorage = async (file: File, folder: "documents" | "receipts") => {
     if (!data) return null;
@@ -1116,13 +1426,14 @@ function VehicleDashboardPage() {
                 key={tab.key}
                 type="button"
                 onClick={() => {
-                  setActiveTab(tab.key);
+                  handleTabChange(tab.key);
                 }}
+                disabled={saving}
                 className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
                   activeTab === tab.key
                     ? "bg-mint/10 text-mint"
                     : "text-slate-400 hover:bg-white/5 hover:text-white"
-                }`}
+                } ${saving ? "cursor-not-allowed opacity-60" : ""}`}
               >
                 {tab.label}
               </button>
@@ -1190,7 +1501,7 @@ function VehicleDashboardPage() {
               <StatCard
                 label="Servisime"
                 value={String(activeServiceRecords.length)}
-                sublabel={formatCurrency(totalServices)}
+                sublabel={totalServices > 0 ? formatCurrency(totalServices) : ""}
                 color="blue"
               />
               <StatCard
@@ -1333,7 +1644,7 @@ function VehicleDashboardPage() {
                         Data e regjistrimit
                         <input
                           type="text"
-                          value={documentIssuedOn}
+                          value={normalizeDateInput(documentIssuedOn) ? formatIsoToDmy(documentIssuedOn) : documentIssuedOn}
                           onChange={(event) => setDocumentIssuedOn(event.target.value)}
                           required
                           placeholder="dd/mm/yyyy"
@@ -1892,7 +2203,16 @@ function VehicleDashboardPage() {
                 onClick={() => setShowReportMileage((previous) => !previous)}
                 className="rounded-xl border border-white/10 bg-deep px-4 py-2 text-sm font-semibold text-white transition hover:border-mint/40 hover:text-mint"
               >
-                {showReportMileage ? "Fshih km" : "Kilometrazhi"}
+                {showReportMileage ? "Mbylle" : "Kilometrazhi"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => downloadReportPdf("all")}
+                disabled={!hasAnyReportData}
+                className="rounded-xl border border-mint/30 bg-mint/10 px-4 py-2 text-sm font-semibold text-mint transition hover:bg-mint/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Shkarko raportin (PDF)
               </button>
 
               {showReportMileage && (
@@ -1969,9 +2289,19 @@ function VehicleDashboardPage() {
                 <section className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="font-display text-lg font-bold">Dokumente</h3>
-                    <span className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-200">
-                      {reportDocuments.length}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => downloadReportPdf("documents")}
+                        disabled={reportDocuments.length === 0}
+                        className="rounded-md border border-blue-400/30 bg-blue-500/10 px-2 py-1 text-[11px] font-semibold text-blue-200 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        PDF
+                      </button>
+                      <span className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-200">
+                        {reportDocuments.length}
+                      </span>
+                    </div>
                   </div>
                   {reportDocuments.length > 0 ? (
                     <div className="space-y-3">
@@ -1995,9 +2325,19 @@ function VehicleDashboardPage() {
                 <section className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="font-display text-lg font-bold">Servisime</h3>
-                    <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200">
-                      {reportServices.length}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => downloadReportPdf("services")}
+                        disabled={reportServices.length === 0}
+                        className="rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        PDF
+                      </button>
+                      <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200">
+                        {reportServices.length}
+                      </span>
+                    </div>
                   </div>
                   {reportServices.length > 0 ? (
                     <div className="space-y-3">
@@ -2021,9 +2361,19 @@ function VehicleDashboardPage() {
                 <section className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="font-display text-lg font-bold">Shpenzime</h3>
-                    <span className="rounded-full border border-purple-400/30 bg-purple-500/10 px-3 py-1 text-xs font-semibold text-purple-200">
-                      {reportExpenses.length}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => downloadReportPdf("expenses")}
+                        disabled={reportExpenses.length === 0}
+                        className="rounded-md border border-purple-400/30 bg-purple-500/10 px-2 py-1 text-[11px] font-semibold text-purple-200 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        PDF
+                      </button>
+                      <span className="rounded-full border border-purple-400/30 bg-purple-500/10 px-3 py-1 text-xs font-semibold text-purple-200">
+                        {reportExpenses.length}
+                      </span>
+                    </div>
                   </div>
                   {reportExpenses.length > 0 ? (
                     <div className="space-y-3">
@@ -2141,7 +2491,7 @@ function StatCard({
 }: {
   label: string;
   value: string;
-  sublabel: string;
+  sublabel?: string;
   color: "mint" | "blue" | "purple" | "amber" | "slate";
   onClick?: () => void;
 }) {
@@ -2162,7 +2512,7 @@ function StatCard({
       <button type="button" onClick={onClick} className={className}>
         <div className="text-left text-sm text-slate-400">{label}</div>
         <p className="mt-3 text-left text-2xl font-bold">{value}</p>
-        <p className="mt-1 text-left text-xs text-slate-400">{sublabel}</p>
+        {sublabel ? <p className="mt-1 text-left text-xs text-slate-400">{sublabel}</p> : null}
       </button>
     );
   }
@@ -2171,7 +2521,7 @@ function StatCard({
     <div className={className}>
       <div className="text-sm text-slate-400">{label}</div>
       <p className="mt-3 text-2xl font-bold">{value}</p>
-      <p className="mt-1 text-xs text-slate-400">{sublabel}</p>
+      {sublabel ? <p className="mt-1 text-xs text-slate-400">{sublabel}</p> : null}
     </div>
   );
 }
@@ -2199,9 +2549,11 @@ function DocumentRow({ document }: { document: DocumentRow }) {
           </a>
         )}
       </div>
-      <span className={`text-sm font-semibold ${statusColors[status.color as keyof typeof statusColors]}`}>
-        {status.label}
-      </span>
+      {status.status !== "unknown" ? (
+        <span className={`text-sm font-semibold ${statusColors[status.color as keyof typeof statusColors]}`}>
+          {status.label}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -2290,7 +2642,7 @@ function ServiceRow({ service }: { service: ServiceRecordRow }) {
         <p className="font-medium">{service.service_type}</p>
         <p className="text-xs text-slate-400">{formatDate(service.service_date)}</p>
       </div>
-      <span className="font-semibold text-mint">{formatCurrency(service.cost)}</span>
+      {service.cost > 0 ? <span className="font-semibold text-mint">{formatCurrency(service.cost)}</span> : null}
     </div>
   );
 }

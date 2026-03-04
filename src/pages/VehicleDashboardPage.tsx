@@ -26,6 +26,12 @@ import {
   isGeneratedVehiclePlaceholder,
   TRANSMISSION_TYPES
 } from "../lib/vehicle-data";
+import {
+  ensureNonNegativeNumber,
+  ensurePositiveAmount,
+  ensureValidDateInput,
+  validateVehicleUploadFile
+} from "../lib/vehicle-dashboard-validation";
 
 // Formatters
 const currencyFormatter = new Intl.NumberFormat("sq-AL", {
@@ -193,6 +199,13 @@ function getMonth(dateValue: string | null) {
   return parsed.getMonth() + 1;
 }
 
+function getDateTimestamp(dateValue: string | null | undefined, fallback = 0) {
+  if (!dateValue) return fallback;
+  const parsed = new Date(dateValue);
+  const timestamp = parsed.getTime();
+  return Number.isNaN(timestamp) ? fallback : timestamp;
+}
+
 function addOneYear(dateValue: string) {
   const normalized = normalizeDateInput(dateValue);
   if (!normalized) return "";
@@ -248,6 +261,14 @@ function sanitizePdfFilePart(value: string) {
 }
 
 type Tab = "overview" | "documents" | "services" | "expenses" | "reports";
+
+const VEHICLE_DASHBOARD_TABS: Array<{ key: Tab; label: string }> = [
+  { key: "overview", label: "Përmbledhje" },
+  { key: "documents", label: "Dokumente" },
+  { key: "services", label: "Servisime" },
+  { key: "expenses", label: "Shpenzime" },
+  { key: "reports", label: "Raporti" }
+];
 
 function VehicleDashboardPage() {
   const { carId } = useParams<{ carId: string }>();
@@ -436,7 +457,7 @@ function VehicleDashboardPage() {
       .filter((item): item is NonNullable<typeof item> => item !== null);
 
     return [...documentAlerts, ...serviceAlerts].sort(
-      (left, right) => new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime()
+      (left, right) => getDateTimestamp(left.dueDate) - getDateTimestamp(right.dueDate)
     );
   }, [data]);
 
@@ -446,7 +467,7 @@ function VehicleDashboardPage() {
     if (!data) return [];
 
     return [...data.documents]
-      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+      .sort((left, right) => getDateTimestamp(right.created_at) - getDateTimestamp(left.created_at))
       .slice(0, 1);
   }, [data]);
 
@@ -455,7 +476,7 @@ function VehicleDashboardPage() {
 
     return data.serviceRecords
       .filter((service) => !service.deleted_at)
-      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+      .sort((left, right) => getDateTimestamp(right.created_at) - getDateTimestamp(left.created_at))
       .slice(0, 1);
   }, [data]);
 
@@ -479,13 +500,24 @@ function VehicleDashboardPage() {
   const filteredDocuments = useMemo(() => {
     if (!data) return [];
 
-    return data.documents.filter((document) => {
-      const status = getDocumentReportStatus(document.expires_on);
+    return data.documents
+      .filter((document) => {
+        const status = getDocumentReportStatus(document.expires_on);
 
-      if (documentFilter === "expiring") return status === "expiring";
-      if (documentFilter === "expired") return status === "expired";
-      return true;
-    });
+        if (documentFilter === "expiring") return status === "expiring";
+        if (documentFilter === "expired") return status === "expired";
+        return true;
+      })
+      .sort((left, right) => {
+        const leftExpiry = getDateTimestamp(left.expires_on, Number.POSITIVE_INFINITY);
+        const rightExpiry = getDateTimestamp(right.expires_on, Number.POSITIVE_INFINITY);
+
+        if (leftExpiry !== rightExpiry) {
+          return leftExpiry - rightExpiry;
+        }
+
+        return getDateTimestamp(right.created_at) - getDateTimestamp(left.created_at);
+      });
   }, [data, documentFilter]);
 
   const availableReportYears = useMemo(() => {
@@ -520,39 +552,59 @@ function VehicleDashboardPage() {
   const reportExpenses = useMemo(() => {
     if (!data) return [];
 
-    return data.expenses.filter((expense) => {
-      const year = getYear(expense.expense_date);
-      const month = getMonth(expense.expense_date);
-      const yearMatch = reportYear === "all" || year === Number(reportYear);
-      const monthMatch = reportMonth === "all" || month === Number(reportMonth);
-      return yearMatch && monthMatch;
-    });
+    return data.expenses
+      .filter((expense) => {
+        const year = getYear(expense.expense_date);
+        const month = getMonth(expense.expense_date);
+        const yearMatch = reportYear === "all" || year === Number(reportYear);
+        const monthMatch = reportMonth === "all" || month === Number(reportMonth);
+        return yearMatch && monthMatch;
+      })
+      .sort((left, right) => {
+        const byDate = getDateTimestamp(right.expense_date) - getDateTimestamp(left.expense_date);
+        if (byDate !== 0) return byDate;
+        return getDateTimestamp(right.created_at) - getDateTimestamp(left.created_at);
+      });
   }, [data, reportMonth, reportYear]);
 
   const reportServices = useMemo(() => {
     if (!data) return [];
 
-    return data.serviceRecords.filter((service) => {
-      if (service.deleted_at) return false;
-      const year = getYear(service.service_date);
-      const month = getMonth(service.service_date);
-      const yearMatch = reportYear === "all" || year === Number(reportYear);
-      const monthMatch = reportMonth === "all" || month === Number(reportMonth);
-      return yearMatch && monthMatch;
-    });
+    return data.serviceRecords
+      .filter((service) => {
+        if (service.deleted_at) return false;
+        const year = getYear(service.service_date);
+        const month = getMonth(service.service_date);
+        const yearMatch = reportYear === "all" || year === Number(reportYear);
+        const monthMatch = reportMonth === "all" || month === Number(reportMonth);
+        return yearMatch && monthMatch;
+      })
+      .sort((left, right) => {
+        const byDate = getDateTimestamp(right.service_date) - getDateTimestamp(left.service_date);
+        if (byDate !== 0) return byDate;
+        return getDateTimestamp(right.created_at) - getDateTimestamp(left.created_at);
+      });
   }, [data, reportMonth, reportYear]);
 
   const reportDocuments = useMemo(() => {
     if (!data) return [];
 
-    return data.documents.filter((document) => {
-      const referenceDate = document.expires_on ?? document.issued_on;
-      const year = getYear(referenceDate);
-      const month = getMonth(referenceDate);
-      const yearMatch = reportYear === "all" || year === Number(reportYear);
-      const monthMatch = reportMonth === "all" || month === Number(reportMonth);
-      return yearMatch && monthMatch;
-    });
+    return data.documents
+      .filter((document) => {
+        const referenceDate = document.expires_on ?? document.issued_on;
+        const year = getYear(referenceDate);
+        const month = getMonth(referenceDate);
+        const yearMatch = reportYear === "all" || year === Number(reportYear);
+        const monthMatch = reportMonth === "all" || month === Number(reportMonth);
+        return yearMatch && monthMatch;
+      })
+      .sort((left, right) => {
+        const leftReferenceDate = left.expires_on ?? left.issued_on ?? left.created_at;
+        const rightReferenceDate = right.expires_on ?? right.issued_on ?? right.created_at;
+        const byDate = getDateTimestamp(rightReferenceDate) - getDateTimestamp(leftReferenceDate);
+        if (byDate !== 0) return byDate;
+        return getDateTimestamp(right.created_at) - getDateTimestamp(left.created_at);
+      });
   }, [data, reportMonth, reportYear]);
 
   const reportHistoryRows = useMemo(() => {
@@ -586,7 +638,7 @@ function VehicleDashboardPage() {
     return [...expenseRows, ...serviceRows, ...documentRows]
       .filter((row) => reportEventFilter === "all" || row.kind === reportEventFilter)
       .sort(
-      (left, right) => new Date(right.date).getTime() - new Date(left.date).getTime()
+      (left, right) => getDateTimestamp(right.date) - getDateTimestamp(left.date)
     );
   }, [reportDocuments, reportEventFilter, reportExpenses, reportServices]);
 
@@ -896,6 +948,28 @@ function VehicleDashboardPage() {
     }
   }, [documentIssuedOn, documentType]);
 
+  useEffect(() => {
+    if (reportMonth === "all") {
+      return;
+    }
+
+    const month = Number(reportMonth);
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      setReportMonth("all");
+    }
+  }, [reportMonth]);
+
+  useEffect(() => {
+    if (reportYear === "all") {
+      return;
+    }
+
+    const year = Number(reportYear);
+    if (!Number.isInteger(year) || !availableReportYears.includes(year)) {
+      setReportYear("all");
+    }
+  }, [availableReportYears, reportYear]);
+
   const uploadFileToStorage = async (file: File, folder: "documents" | "receipts") => {
     if (!data) return null;
 
@@ -929,20 +1003,39 @@ function VehicleDashboardPage() {
     setFormError("");
 
     try {
+      if (documentFile) {
+        validateVehicleUploadFile(documentFile, "Dokumenti");
+      }
+
       const uploadedFileUrl = documentFile ? await uploadFileToStorage(documentFile, "documents") : null;
       const normalizedIssuedDate = normalizeDateInput(documentIssuedOn);
-      const registrationExpiry = addOneYear(documentIssuedOn);
+      const normalizedExpiryDate = normalizeDateInput(documentExpiresOn);
+      const registrationExpiry = addOneYear(normalizedIssuedDate);
+      const requiresIssuedDate = ["registration", "insurance", "inspection", "manual", "authorization"].includes(documentType);
 
-      if (["registration", "insurance", "inspection"].includes(documentType) && !normalizedIssuedDate) {
+      if (requiresIssuedDate && !normalizedIssuedDate) {
         throw new Error("Data nuk është valide. Përdor formatin dd/mm/yyyy ose yyyy-mm-dd.");
+      }
+
+      if (["manual", "authorization"].includes(documentType) && documentExpiresOn.trim() && !normalizedExpiryDate) {
+        throw new Error("Data e skadimit nuk është valide. Përdor formatin dd/mm/yyyy ose yyyy-mm-dd.");
       }
 
       if (documentType === "registration" && !registrationExpiry) {
         throw new Error("Data e skadimit nuk u llogarit. Kontrollo datën e regjistrimit.");
       }
 
+      if (
+        (documentType === "manual" || documentType === "authorization") &&
+        normalizedIssuedDate &&
+        normalizedExpiryDate &&
+        getDateTimestamp(normalizedExpiryDate) < getDateTimestamp(normalizedIssuedDate)
+      ) {
+        throw new Error("Data e skadimit nuk mund të jetë më e hershme se data e lëshimit.");
+      }
+
       const issuedOn =
-        documentType === "registration" || documentType === "insurance" || documentType === "inspection"
+        documentType === "registration" || documentType === "insurance" || documentType === "inspection" || documentType === "manual" || documentType === "authorization"
           ? normalizedIssuedDate || null
           : null;
 
@@ -950,7 +1043,7 @@ function VehicleDashboardPage() {
         documentType === "registration"
           ? registrationExpiry || null
           : documentType === "manual" || documentType === "authorization"
-            ? documentExpiresOn || null
+            ? normalizedExpiryDate || null
             : null;
 
       const mergedNotes =
@@ -995,11 +1088,23 @@ function VehicleDashboardPage() {
     setFormError("");
 
     try {
+      ensureValidDateInput(serviceDate, "Data e servisimit nuk është valide.");
+
       const selectedServiceLabel = SERVICE_KIND_OPTIONS.find((option) => option.value === serviceType)?.label ?? "Servis";
       const serviceLabel = serviceType === "other" ? otherServiceCustomLabel.trim() || "Tjera" : selectedServiceLabel;
 
       if (serviceType === "oil_change" && !serviceMileage.trim()) {
         throw new Error("Shkruaje kilometrazhin aktual për këtë servis.");
+      }
+
+      const normalizedServiceCost = serviceCost.trim() ? Number(serviceCost) : 0;
+
+      if (serviceType === "other" && (!Number.isFinite(normalizedServiceCost) || normalizedServiceCost < 0)) {
+        throw new Error("Kostoja e servisimit duhet të jetë numër valid (0 ose më shumë).");
+      }
+
+      if (serviceType === "other" && serviceCost.trim()) {
+        ensureNonNegativeNumber(serviceCost, "Kostoja e servisimit duhet të jetë numër valid (0 ose më shumë).");
       }
 
       const normalizedServiceMileage = serviceType === "oil_change" && serviceMileage.trim() ? Number(serviceMileage) : null;
@@ -1014,6 +1119,14 @@ function VehicleDashboardPage() {
             `Kilometrazhi i servisimit nuk mund të jetë më i vogël se kilometrazhi i regjistrimit (${data.car.mileage.toLocaleString("sq-AL")} km).`
           );
         }
+      }
+
+      if (serviceType === "other" && serviceNextKm.trim()) {
+        ensureNonNegativeNumber(serviceNextKm, "Plani i kilometrazhit duhet të jetë numër valid.");
+      }
+
+      if (serviceType === "other" && serviceNextDate.trim()) {
+        ensureValidDateInput(serviceNextDate, "Data e servisimit të ardhshëm nuk është valide.");
       }
 
       const details: Array<[string, string | null]> = [];
@@ -1061,7 +1174,7 @@ function VehicleDashboardPage() {
         service_date: serviceDate,
         service_type: serviceLabel,
         provider: serviceType === "other" ? serviceProvider.trim() || null : null,
-        cost: serviceType === "other" ? (serviceCost ? Number(serviceCost) : 0) : 0,
+        cost: serviceType === "other" ? normalizedServiceCost : 0,
         mileage: normalizedServiceMileage,
         notes: buildNotes(serviceNotes, details),
         next_service_due_at: serviceType === "other" ? serviceNextDate || null : null
@@ -1099,8 +1212,15 @@ function VehicleDashboardPage() {
     setFormError("");
 
     try {
+      ensureValidDateInput(expenseDate, "Data e shpenzimit nuk është valide.");
+
+      if (expenseReceiptFile) {
+        validateVehicleUploadFile(expenseReceiptFile, "Kuponi");
+      }
+
       const categoryLabel = EXPENSE_KIND_OPTIONS.find((option) => option.value === expenseCategory)?.label ?? "Tjera";
       const uploadedReceipt = expenseReceiptFile ? await uploadFileToStorage(expenseReceiptFile, "receipts") : null;
+      const amountValue = ensurePositiveAmount(expenseAmount);
 
       const notes = buildNotes(expenseNotes, [
         ["Kupon", uploadedReceipt || null]
@@ -1111,7 +1231,7 @@ function VehicleDashboardPage() {
         car_id: data.car.id,
         expense_date: expenseDate,
         category: categoryLabel,
-        amount: Number(expenseAmount),
+        amount: amountValue,
         notes,
         vendor: null
       });
@@ -1137,9 +1257,14 @@ function VehicleDashboardPage() {
     setFormError("");
 
     try {
+      const normalizedDate = normalizeDateInput(nextDate.trim());
+      if (!normalizedDate) {
+        throw new Error("Data e servisimit nuk është valide.");
+      }
+
       await updateServiceRecord(service.id, {
         service_type: nextType.trim() || service.service_type,
-        service_date: nextDate.trim() || service.service_date,
+        service_date: normalizedDate,
         notes: nextNotes.trim() || null
       });
 
@@ -1171,7 +1296,12 @@ function VehicleDashboardPage() {
     setFormError("");
 
     try {
-      const normalizedExpiry = nextExpiry.trim() || null;
+      const normalizedExpiryInput = nextExpiry.trim();
+      const normalizedExpiry = normalizedExpiryInput ? normalizeDateInput(normalizedExpiryInput) : null;
+
+      if (normalizedExpiryInput && !normalizedExpiry) {
+        throw new Error("Data e skadimit nuk është valide.");
+      }
 
       await updateDocument(document.id, {
         reference_number: nextTitle.trim() || null,
@@ -1210,13 +1340,18 @@ function VehicleDashboardPage() {
 
     try {
       const amountValue = Number(nextAmount);
+      const normalizedDate = normalizeDateInput(nextDate.trim());
+
+      if (!normalizedDate) {
+        throw new Error("Data e shpenzimit nuk është valide.");
+      }
 
       if (!Number.isFinite(amountValue) || amountValue < 0) {
         throw new Error("Shuma nuk është valide.");
       }
 
       await updateExpense(expense.id, {
-        expense_date: nextDate.trim() || expense.expense_date,
+        expense_date: normalizedDate,
         category: nextCategory.trim() || expense.category,
         amount: amountValue,
         notes: nextNotes.trim() || null
@@ -1274,9 +1409,9 @@ function VehicleDashboardPage() {
   const mileageServiceRows = activeServiceRecords
     .filter((service) => isOilChangeServiceType(service.service_type) && typeof service.mileage === "number")
     .sort((left, right) => {
-      const byServiceDate = new Date(right.service_date).getTime() - new Date(left.service_date).getTime();
+      const byServiceDate = getDateTimestamp(right.service_date) - getDateTimestamp(left.service_date);
       if (byServiceDate !== 0) return byServiceDate;
-      return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+      return getDateTimestamp(right.created_at) - getDateTimestamp(left.created_at);
     });
   const latestServiceWithMileage = mileageServiceRows[0] ?? null;
   const registrationMileage = car.mileage;
@@ -1302,7 +1437,7 @@ function VehicleDashboardPage() {
         label: service.service_type,
         mileage: service.mileage as number
       }))
-  ].sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
+  ].sort((left, right) => getDateTimestamp(left.date) - getDateTimestamp(right.date));
   const colorInfo = COLORS.find((c) => c.value === car.color);
   const bodyTypeInfo = BODY_TYPES.find((b) => b.value === car.body_type);
   const fuelTypeInfo = FUEL_TYPES.find((f) => f.value === car.fuel_type);
@@ -1415,13 +1550,7 @@ function VehicleDashboardPage() {
 
           {/* Tabs */}
           <nav className="mt-8 flex gap-1 overflow-x-auto">
-            {[
-              { key: "overview" as Tab, label: "Përmbledhje" },
-              { key: "documents" as Tab, label: "Dokumente" },
-              { key: "services" as Tab, label: "Servisime" },
-              { key: "expenses" as Tab, label: "Shpenzime" },
-              { key: "reports" as Tab, label: "Raporti" }
-            ].map((tab) => (
+            {VEHICLE_DASHBOARD_TABS.map((tab) => (
               <button
                 key={tab.key}
                 type="button"

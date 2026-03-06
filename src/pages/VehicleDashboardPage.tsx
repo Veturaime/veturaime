@@ -401,7 +401,7 @@ function VehicleDashboardPage() {
     return data.documents
       .filter((d) => {
         const days = getDaysUntil(d.expires_on);
-        return days !== null && days <= 30;
+        return days !== null && days >= 0 && days <= 30;
       })
       .sort((a, b) => {
         const daysA = getDaysUntil(a.expires_on) ?? Infinity;
@@ -462,6 +462,23 @@ function VehicleDashboardPage() {
   }, [data]);
 
   const overviewNotificationCount = overviewNotifications.length;
+
+  const handleOverviewNotificationsClick = () => {
+    if (overviewNotifications.length === 0 || saving) {
+      return;
+    }
+
+    const firstNotification = overviewNotifications[0];
+
+    if (firstNotification.kind === "documents") {
+      const status = getDocumentReportStatus(firstNotification.dueDate);
+      setDocumentFilter(status === "expired" ? "expired" : "expiring");
+      handleTabChange("documents");
+      return;
+    }
+
+    handleTabChange("services");
+  };
 
   const recentDocuments = useMemo(() => {
     if (!data) return [];
@@ -1644,7 +1661,7 @@ function VehicleDashboardPage() {
                 value={String(overviewNotificationCount)}
                 sublabel={overviewNotificationCount > 0 ? "Njoftime aktive" : "Nuk ka njoftime"}
                 color="slate"
-                onClick={() => setShowOverviewAlert((previous) => !previous)}
+                onClick={overviewNotificationCount > 0 ? handleOverviewNotificationsClick : undefined}
               />
             </div>
 
@@ -1706,36 +1723,6 @@ function VehicleDashboardPage() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="font-display text-xl font-bold">Dokumentet e Veturës</h2>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setDocumentFilter("all")}
-                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-                  documentFilter === "all" ? "bg-mint/15 text-mint" : "bg-white/5 text-slate-300"
-                }`}
-              >
-                Të gjitha ({documentFilterStats.all})
-              </button>
-              <button
-                type="button"
-                onClick={() => setDocumentFilter("expiring")}
-                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-                  documentFilter === "expiring" ? "bg-amber-500/20 text-amber-300" : "bg-white/5 text-slate-300"
-                }`}
-              >
-                Po skadojnë ({documentFilterStats.expiring})
-              </button>
-              <button
-                type="button"
-                onClick={() => setDocumentFilter("expired")}
-                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-                  documentFilter === "expired" ? "bg-red-500/20 text-red-300" : "bg-white/5 text-slate-300"
-                }`}
-              >
-                Skaduara ({documentFilterStats.expired})
-              </button>
             </div>
 
             <form onSubmit={handleCreateDocument} className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/50 p-5">
@@ -1893,23 +1880,58 @@ function VehicleDashboardPage() {
                 </button>
               </form>
 
-            {filteredDocuments.length === 0 ? (
-              <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-6 text-sm text-slate-400">
-                Nuk ka dokumente për këtë filtër.
+            <section className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/50 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="font-display text-lg font-semibold text-white">Lista dhe filtrimi i dokumenteve</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDocumentFilter("all")}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                      documentFilter === "all" ? "bg-mint/15 text-mint" : "bg-white/5 text-slate-300"
+                    }`}
+                  >
+                    Të gjitha ({documentFilterStats.all})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDocumentFilter("expiring")}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                      documentFilter === "expiring" ? "bg-amber-500/20 text-amber-300" : "bg-white/5 text-slate-300"
+                    }`}
+                  >
+                    Po skadojnë ({documentFilterStats.expiring})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDocumentFilter("expired")}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                      documentFilter === "expired" ? "bg-red-500/20 text-red-300" : "bg-white/5 text-slate-300"
+                    }`}
+                  >
+                    Skaduara ({documentFilterStats.expired})
+                  </button>
+                </div>
               </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredDocuments.map((doc) => (
-                  <DocumentCard
-                    key={doc.id}
-                    document={doc}
-                    onEdit={handleEditDocument}
-                    onDelete={handleDeleteDocument}
-                    showActions
-                  />
-                ))}
-              </div>
-            )}
+
+              {filteredDocuments.length === 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-deep/30 p-6 text-sm text-slate-400">
+                  Nuk ka dokumente për këtë filtër.
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredDocuments.map((doc) => (
+                    <DocumentCard
+                      key={doc.id}
+                      document={doc}
+                      onEdit={handleEditDocument}
+                      onDelete={handleDeleteDocument}
+                      showActions
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         )}
 

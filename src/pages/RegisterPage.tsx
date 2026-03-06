@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { registerWithEmail } from "../lib/supabase";
+import { registerWithEmail, supabase } from "../lib/supabase";
 
 type RegisterForm = {
   fullName: string;
@@ -55,8 +55,20 @@ function RegisterPage() {
         password: form.password
       });
 
-      setMessage("Llogaria u krijua. Kontrollo email-in për konfirmim.");
-      setTimeout(() => navigate("/login"), 1200);
+      // Auto-login after registration
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: form.email.trim(),
+        password: form.password
+      });
+
+      if (signInError) {
+        setMessage("Llogaria u krijua. Ju lutem hyni me kredencialet tuaja.");
+        setTimeout(() => navigate("/login"), 1200);
+        return;
+      }
+
+      // Redirect to verification
+      navigate("/verify");
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);

@@ -7,7 +7,9 @@ import LoginPage from "./pages/LoginPage";
 import MyGaragePage from "./pages/MyGaragePage";
 import OnboardingPage from "./pages/OnboardingPage";
 import RegisterPage from "./pages/RegisterPage";
+import VehicleDocumentsPage from "./pages/VehicleDocumentsPage";
 import VehicleDashboardPage from "./pages/VehicleDashboardPage";
+import VehicleMileagePage from "./pages/VehicleMileagePage";
 import VerificationPage from "./pages/VerificationPage";
 
 function App() {
@@ -26,6 +28,9 @@ function App() {
       {/* Main app */}
       <Route path="/my-garage" element={<MyGaragePage />} />
       <Route path="/vehicle/:carId" element={<VehicleDashboardPage />} />
+      <Route path="/vehicle/:carId/documents-view" element={<VehicleDocumentsPage />} />
+      <Route path="/vehicle/:carId/mileage-view" element={<VehicleMileagePage />} />
+      <Route path="/vehicle/:carId/:section" element={<VehicleDashboardPage />} />
       
       {/* Legacy dashboard (kept for compatibility) */}
       <Route path="/dashboard" element={<DashboardPage />} />

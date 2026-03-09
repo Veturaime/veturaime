@@ -270,15 +270,59 @@ const VEHICLE_DASHBOARD_TABS: Array<{ key: Tab; label: string }> = [
   { key: "reports", label: "Raporti" }
 ];
 
+function getOverviewNotificationStorageKey(carId: string) {
+  return `veturaime-overview-dismissed-${carId}`;
+}
+
+function loadDismissedOverviewNotifications(carId: string) {
+  if (typeof window === "undefined") {
+    return {} as Record<string, number>;
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(getOverviewNotificationStorageKey(carId));
+    if (!rawValue) {
+      return {} as Record<string, number>;
+    }
+
+    const parsedValue = JSON.parse(rawValue) as Record<string, number>;
+    const now = Date.now();
+
+    return Object.fromEntries(
+      Object.entries(parsedValue).filter(([, expiresAt]) => Number.isFinite(expiresAt) && expiresAt > now)
+    );
+  } catch {
+    return {} as Record<string, number>;
+  }
+}
+
+function saveDismissedOverviewNotifications(carId: string, entries: Record<string, number>) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    if (Object.keys(entries).length === 0) {
+      window.localStorage.removeItem(getOverviewNotificationStorageKey(carId));
+      return;
+    }
+
+    window.localStorage.setItem(getOverviewNotificationStorageKey(carId), JSON.stringify(entries));
+  } catch {
+    // Ignore storage failures and continue with in-memory state.
+  }
+}
+
 function VehicleDashboardPage() {
-  const { carId } = useParams<{ carId: string }>();
+  const { carId, section } = useParams<{ carId: string; section?: string }>();
   const navigate = useNavigate();
   const now = new Date();
   const currentYear = now.getFullYear();
   const [data, setData] = useState<VehicleDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const initialTab = VEHICLE_DASHBOARD_TABS.some((tab) => tab.key === section) ? (section as Tab) : "overview";
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [carImage, setCarImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
@@ -323,7 +367,32 @@ function VehicleDashboardPage() {
   const [reportMonth, setReportMonth] = useState<string>("all");
   const [reportEventFilter, setReportEventFilter] = useState<ReportEventFilter>("all");
   const [showReportMileage, setShowReportMileage] = useState(false);
-  const [showOverviewAlert] = useState(true);
+  const [showOverviewNotificationsPanel, setShowOverviewNotificationsPanel] = useState(false);
+  const [dismissedOverviewNotifications, setDismissedOverviewNotifications] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const nextTab = VEHICLE_DASHBOARD_TABS.some((tab) => tab.key === section) ? (section as Tab) : "overview";
+    setActiveTab(nextTab);
+  }, [section]);
+
+  useEffect(() => {
+    if (!carId) {
+      setDismissedOverviewNotifications({});
+      return;
+    }
+
+    const activeDismissals = loadDismissedOverviewNotifications(carId);
+    setDismissedOverviewNotifications(activeDismissals);
+    saveDismissedOverviewNotifications(carId, activeDismissals);
+  }, [carId]);
+
+  const getVehicleTabPath = (tab: Tab) => {
+    if (!carId) {
+      return "/my-garage";
+    }
+
+    return tab === "overview" ? `/vehicle/${carId}` : `/vehicle/${carId}/${tab}`;
+  };
 
   const handleTabChange = (nextTab: Tab) => {
     if (activeTab === nextTab || saving) {
@@ -331,6 +400,7 @@ function VehicleDashboardPage() {
     }
 
     setActiveTab(nextTab);
+    navigate(getVehicleTabPath(nextTab));
   };
 
   useEffect(() => {
@@ -461,23 +531,23 @@ function VehicleDashboardPage() {
     );
   }, [data]);
 
-  const overviewNotificationCount = overviewNotifications.length;
+  const visibleOverviewNotifications = useMemo(() => {
+    const now = Date.now();
+
+    return overviewNotifications.filter((notification) => {
+      const hiddenUntil = dismissedOverviewNotifications[notification.id];
+      return !hiddenUntil || hiddenUntil <= now;
+    });
+  }, [dismissedOverviewNotifications, overviewNotifications]);
+
+  const overviewNotificationCount = visibleOverviewNotifications.length;
 
   const handleOverviewNotificationsClick = () => {
-    if (overviewNotifications.length === 0 || saving) {
+    if (overviewNotificationCount === 0 || saving) {
       return;
     }
 
-    const firstNotification = overviewNotifications[0];
-
-    if (firstNotification.kind === "documents") {
-      const status = getDocumentReportStatus(firstNotification.dueDate);
-      setDocumentFilter(status === "expired" ? "expired" : "expiring");
-      handleTabChange("documents");
-      return;
-    }
-
-    handleTabChange("services");
+    setShowOverviewNotificationsPanel((current) => !current);
   };
 
   const recentDocuments = useMemo(() => {
@@ -1556,15 +1626,23 @@ function VehicleDashboardPage() {
             {/* Quick stats */}
             <div className="flex gap-4">
               {typeof currentMileage === "number" && (
-                <div className="rounded-2xl bg-white px-5 py-4 text-center shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/vehicle/${car.id}/mileage-view`)}
+                  className="rounded-2xl bg-white px-5 py-4 text-center shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0px_16px_38px_rgba(0,0,0,0.08)]"
+                >
                   <p className="text-2xl font-bold text-[#111827]">{currentMileage.toLocaleString("sq-AL")}</p>
                   <p className="text-xs text-[#6B7280]">km</p>
-                </div>
+                </button>
               )}
-              <div className="rounded-2xl bg-white px-5 py-4 text-center shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
+              <button
+                type="button"
+                onClick={() => navigate(`/vehicle/${car.id}/documents-view`)}
+                className="rounded-2xl bg-white px-5 py-4 text-center shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0px_16px_38px_rgba(0,0,0,0.08)]"
+              >
                 <p className="text-2xl font-bold text-[#2D3A3A]">{documents.length}</p>
                 <p className="text-xs text-[#6B7280]">dokumente</p>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -1596,49 +1674,6 @@ function VehicleDashboardPage() {
         {/* Overview tab */}
         {activeTab === "overview" && (
           <div className="space-y-8">
-            {/* Urgent alerts */}
-            {urgentDocuments.length > 0 && showOverviewAlert && (
-              <section className="rounded-3xl bg-[#fff4f2] p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
-                <div className="flex items-center gap-3">
-                  <div className="h-3 w-3 rounded-full bg-[#e76e50]" />
-                  <div>
-                    <h2 className="font-display text-lg font-bold text-[#b42318]">Vëmendje!</h2>
-                    <p className="text-sm text-[#c2410c]">
-                      {urgentDocuments.length} dokument{urgentDocuments.length > 1 ? "e" : ""} po skadon së shpejti
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {urgentDocuments.slice(0, 4).map((doc) => {
-                    const status = getDocumentStatus(doc.expires_on);
-                    const docType = DOCUMENT_TYPES[doc.document_type] || DOCUMENT_TYPES.other;
-                    return (
-                      <div
-                        key={doc.id}
-                        className="flex items-center justify-between rounded-xl bg-white p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div>
-                            <p className="font-semibold text-[#1F2937]">{docType.label}</p>
-                            <p className="text-xs text-[#6B7280]">Skadon: {formatDate(doc.expires_on)}</p>
-                          </div>
-                        </div>
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                            status.color === "red"
-                              ? "bg-[#fee4e2] text-[#b42318]"
-                              : "bg-[#fef3c7] text-[#b45309]"
-                          }`}
-                        >
-                          {status.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-
             {/* Stats grid */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard
@@ -1646,6 +1681,7 @@ function VehicleDashboardPage() {
                 value={String(documents.length)}
                 sublabel={`${urgentDocuments.length} po skadon`}
                 color={urgentDocuments.length > 0 ? "amber" : "mint"}
+                onClick={documents.length > 0 ? () => handleTabChange("documents") : undefined}
               />
               <StatCard
                 label="Servisime"
@@ -1668,6 +1704,63 @@ function VehicleDashboardPage() {
               />
             </div>
 
+            {showOverviewNotificationsPanel && overviewNotificationCount > 0 && (
+              <section className="mx-auto max-w-2xl rounded-3xl bg-white p-6 shadow-[0px_18px_45px_rgba(0,0,0,0.08)]">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e7f1ee] text-[#2D3A3A]">
+                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.7}
+                          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-display text-lg font-bold text-[#1F2937]">Njoftimet</h3>
+                      <p className="text-sm text-[#c2410c]">
+                        {overviewNotificationCount} dokument{overviewNotificationCount > 1 ? "e" : ""} po skadon së shpejti
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowOverviewNotificationsPanel(false)}
+                    className="rounded-lg bg-[#f3f4f6] px-3 py-1.5 text-sm font-semibold text-[#4b5563] transition hover:bg-[#e5e7eb]"
+                  >
+                    Mbylle
+                  </button>
+                </div>
+
+                <div className="mt-5 space-y-3">
+                  {visibleOverviewNotifications.map((notification) => (
+                    <article
+                      key={notification.id}
+                      className="flex items-center justify-between rounded-xl bg-white p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]"
+                    >
+                      <div>
+                        <p className="font-semibold text-[#1F2937]">{notification.title}</p>
+                        <p className="text-xs text-[#6B7280]">{notification.subtitle}</p>
+                      </div>
+
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                          notification.kind === "documents"
+                            ? "bg-[#fef3c7] text-[#b45309]"
+                            : "bg-[#dbeafe] text-[#1d4ed8]"
+                        }`}
+                      >
+                        {notification.badge}
+                      </span>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* Recent activity */}
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Recent documents */}
@@ -1676,7 +1769,7 @@ function VehicleDashboardPage() {
                   <h3 className="font-display text-lg font-bold text-[#1F2937]">Dokumentet</h3>
                   <button
                     type="button"
-                    onClick={() => setActiveTab("documents")}
+                    onClick={() => handleTabChange("documents")}
                     className="text-sm font-semibold text-[#2D3A3A] hover:underline"
                   >
                     Shiko të gjitha
@@ -1700,7 +1793,7 @@ function VehicleDashboardPage() {
                   <h3 className="font-display text-lg font-bold text-[#1F2937]">Servisimet e Fundit</h3>
                   <button
                     type="button"
-                    onClick={() => setActiveTab("services")}
+                    onClick={() => handleTabChange("services")}
                     className="text-sm font-semibold text-[#2D3A3A] hover:underline"
                   >
                     Shiko të gjitha
@@ -2448,11 +2541,11 @@ function VehicleDashboardPage() {
                         type="button"
                         onClick={() => downloadReportPdf("documents")}
                         disabled={reportDocuments.length === 0}
-                        className="rounded-md border border-blue-400/30 bg-blue-500/10 px-2 py-1 text-[11px] font-semibold text-blue-200 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-md border border-[#93c5fd] bg-[#dbeafe] px-2 py-1 text-[11px] font-semibold text-[#1d4ed8] transition hover:bg-[#bfdbfe] disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         PDF
                       </button>
-                      <span className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-200">
+                      <span className="rounded-full border border-[#93c5fd] bg-[#dbeafe] px-3 py-1 text-xs font-semibold text-[#1d4ed8]">
                         {reportDocuments.length}
                       </span>
                     </div>
@@ -2484,11 +2577,11 @@ function VehicleDashboardPage() {
                         type="button"
                         onClick={() => downloadReportPdf("services")}
                         disabled={reportServices.length === 0}
-                        className="rounded-md border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-md border border-[#fcd34d] bg-[#fef3c7] px-2 py-1 text-[11px] font-semibold text-[#b45309] transition hover:bg-[#fde68a] disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         PDF
                       </button>
-                      <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200">
+                      <span className="rounded-full border border-[#fcd34d] bg-[#fef3c7] px-3 py-1 text-xs font-semibold text-[#b45309]">
                         {reportServices.length}
                       </span>
                     </div>
@@ -2520,11 +2613,11 @@ function VehicleDashboardPage() {
                         type="button"
                         onClick={() => downloadReportPdf("expenses")}
                         disabled={reportExpenses.length === 0}
-                        className="rounded-md border border-purple-400/30 bg-purple-500/10 px-2 py-1 text-[11px] font-semibold text-purple-200 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-md border border-[#d8b4fe] bg-[#f3e8ff] px-2 py-1 text-[11px] font-semibold text-[#7c3aed] transition hover:bg-[#e9d5ff] disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         PDF
                       </button>
-                      <span className="rounded-full border border-purple-400/30 bg-purple-500/10 px-3 py-1 text-xs font-semibold text-purple-200">
+                      <span className="rounded-full border border-[#d8b4fe] bg-[#f3e8ff] px-3 py-1 text-xs font-semibold text-[#7c3aed]">
                         {reportExpenses.length}
                       </span>
                     </div>
@@ -2552,7 +2645,7 @@ function VehicleDashboardPage() {
               <section className="dashboard-panel space-y-4 rounded-2xl p-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-display text-lg font-bold">Historia e plotë</h3>
-                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-300">
+                  <span className="rounded-full border border-[#dbe3ea] bg-[#f5f7fa] px-3 py-1 text-xs font-semibold text-[#4b5563]">
                     {reportHistoryRows.length} rreshta
                   </span>
                 </div>
@@ -2564,10 +2657,10 @@ function VehicleDashboardPage() {
                       {latestReportRows.map((row) => {
                         const kindBadgeClass =
                           row.kind === "documents"
-                            ? "border-blue-400/30 bg-blue-500/10 text-blue-200"
+                            ? "border-[#93c5fd] bg-[#dbeafe] text-[#1d4ed8]"
                             : row.kind === "services"
-                              ? "border-amber-400/30 bg-amber-500/10 text-amber-200"
-                              : "border-purple-400/30 bg-purple-500/10 text-purple-200";
+                              ? "border-[#fcd34d] bg-[#fef3c7] text-[#b45309]"
+                              : "border-[#d8b4fe] bg-[#f3e8ff] text-[#7c3aed]";
 
                         return (
                           <article key={`latest-${row.id}`} className="rounded-xl border border-white/10 bg-deep/40 p-3">
@@ -2590,10 +2683,10 @@ function VehicleDashboardPage() {
                     {reportHistoryRows.map((row) => {
                       const kindBadgeClass =
                         row.kind === "documents"
-                          ? "border-blue-400/30 bg-blue-500/10 text-blue-200"
+                            ? "border-[#93c5fd] bg-[#dbeafe] text-[#1d4ed8]"
                           : row.kind === "services"
-                            ? "border-amber-400/30 bg-amber-500/10 text-amber-200"
-                            : "border-purple-400/30 bg-purple-500/10 text-purple-200";
+                            ? "border-[#fcd34d] bg-[#fef3c7] text-[#b45309]"
+                            : "border-[#d8b4fe] bg-[#f3e8ff] text-[#7c3aed]";
 
                       return (
                         <article
@@ -2610,8 +2703,8 @@ function VehicleDashboardPage() {
                               </div>
                               <p className="mt-2 text-sm font-semibold text-white">{row.label}</p>
                             </div>
-                            {typeof row.amount === "number" ? (
-                              <span className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-mint">
+                            {typeof row.amount === "number" && row.amount > 0 ? (
+                              <span className="rounded-lg border border-[#dbe3ea] bg-[#f5f7fa] px-2.5 py-1 text-xs font-semibold text-[#2D3A3A]">
                                 {formatCurrency(row.amount)}
                               </span>
                             ) : null}
@@ -2765,7 +2858,7 @@ function DocumentCard({
               <button
                 type="button"
                 onClick={() => onDelete(document)}
-                className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/20"
+                className="rounded-lg border border-[#fda29b] bg-[#fee4e2] px-3 py-1.5 text-xs font-semibold text-[#b42318] transition hover:bg-[#fecdca]"
               >
                 Fshije
               </button>
@@ -2831,7 +2924,7 @@ function ServiceCard({
             <button
               type="button"
               onClick={() => onDelete(service)}
-              className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/20"
+              className="rounded-lg border border-[#fda29b] bg-[#fee4e2] px-3 py-1.5 text-xs font-semibold text-[#b42318] transition hover:bg-[#fecdca]"
             >
               Fshije
             </button>
@@ -2897,7 +2990,7 @@ function ExpenseCard({
               <button
                 type="button"
                 onClick={() => onDelete(expense)}
-                className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/20"
+                className="rounded-lg border border-[#fda29b] bg-[#fee4e2] px-3 py-1.5 text-xs font-semibold text-[#b42318] transition hover:bg-[#fecdca]"
               >
                 Fshije
               </button>

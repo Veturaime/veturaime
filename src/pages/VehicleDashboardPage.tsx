@@ -323,7 +323,7 @@ function VehicleDashboardPage() {
   const [reportMonth, setReportMonth] = useState<string>("all");
   const [reportEventFilter, setReportEventFilter] = useState<ReportEventFilter>("all");
   const [showReportMileage, setShowReportMileage] = useState(false);
-  const [showOverviewAlert, setShowOverviewAlert] = useState(true);
+  const [showOverviewAlert] = useState(true);
 
   const handleTabChange = (nextTab: Tab) => {
     if (activeTab === nextTab || saving) {
@@ -1396,23 +1396,23 @@ function VehicleDashboardPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-deep text-white">
-        <div className="h-12 w-12 animate-spin rounded-full border-2 border-mint border-t-transparent" />
+      <main className="vehicle-dashboard-soft flex min-h-screen items-center justify-center bg-[#F9FAFB] text-[#1F2937]">
+        <div className="h-12 w-12 animate-spin rounded-full border-2 border-[#2D3A3A] border-t-transparent" />
       </main>
     );
   }
 
   if (error || !data) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-deep px-4 text-white">
+      <main className="vehicle-dashboard-soft flex min-h-screen items-center justify-center bg-[#F9FAFB] px-4 text-[#1F2937]">
         <div className="text-center">
-          <p className="text-lg text-red-400">{error || "Vetura nuk u gjet."}</p>
+          <p className="text-lg text-[#b42318]">{error || "Vetura nuk u gjet."}</p>
           <Link
             to="/my-garage"
-            className="mt-4 inline-flex items-center gap-2 text-mint hover:underline"
+            className="mt-4 inline-flex items-center gap-2 text-[#2D3A3A] hover:underline"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M15 19l-7-7 7-7" />
             </svg>
             Kthehu te garazhi
           </Link>
@@ -1462,17 +1462,20 @@ function VehicleDashboardPage() {
   const renderableCarImage = getRenderableVehicleImageUrl(carImage);
 
   return (
-    <main className="relative min-h-screen bg-deep font-body text-white antialiased">
-      {/* Background */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(72,242,194,0.03),transparent_50%)]" />
+    <main className="vehicle-dashboard-soft relative min-h-screen overflow-hidden bg-[#F9FAFB] font-body text-[#1F2937] antialiased">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-28 top-6 h-80 w-80 rounded-full bg-[#b8c8c5]/20 blur-3xl" />
+        <div className="absolute -right-24 top-28 h-96 w-96 rounded-full bg-[#c8d8eb]/20 blur-3xl" />
+        <div className="absolute bottom-[-180px] left-1/3 h-[420px] w-[420px] rounded-full bg-[#2D3A3A]/[0.04] blur-3xl" />
+      </div>
 
       {/* Header with car hero */}
-      <header className="relative overflow-hidden border-b border-white/10 bg-gradient-to-b from-slate-900/50 to-deep">
+      <header className="relative overflow-hidden border-b border-[#e6eaee] bg-[#F9FAFB]/90 backdrop-blur-xl">
         {/* Background image */}
         {carImage && (
-          <div className="absolute inset-0 opacity-20">
-            <img src={renderableCarImage ?? carImage} alt="" className="h-full w-full object-cover blur-2xl" />
-            <div className="absolute inset-0 bg-gradient-to-b from-deep/50 via-deep/80 to-deep" />
+          <div className="absolute inset-0 opacity-[0.12]">
+            <img src={renderableCarImage ?? carImage} alt="" className="h-full w-full object-cover blur-3xl" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(249,250,251,0.85),rgba(249,250,251,0.98))]" />
           </div>
         )}
 
@@ -1480,10 +1483,10 @@ function VehicleDashboardPage() {
           {/* Breadcrumb */}
           <Link
             to="/my-garage"
-            className="inline-flex items-center gap-2 text-sm text-slate-400 transition hover:text-white"
+            className="inline-flex items-center gap-2 text-sm text-[#6B7280] transition hover:text-[#1F2937]"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M15 19l-7-7 7-7" />
             </svg>
             Garazhi im
           </Link>
@@ -1492,15 +1495,15 @@ function VehicleDashboardPage() {
           <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div className="flex items-center gap-5">
               {/* Car thumbnail */}
-              <div className="hidden h-24 w-36 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-slate-900 sm:block">
+              <div className="hidden h-24 w-36 shrink-0 overflow-hidden rounded-2xl bg-[linear-gradient(145deg,#ffffff,#f3f7fb)] shadow-[0px_10px_30px_rgba(0,0,0,0.05)] sm:block">
                 {carImage ? (
                   <img
                     src={renderableCarImage ?? carImage}
                     alt={`${car.make} ${car.model}`}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-contain p-3 drop-shadow-[0px_14px_22px_rgba(0,0,0,0.14)]"
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-slate-600">
+                  <div className="flex h-full items-center justify-center text-[#9ca3af]">
                     <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
                     </svg>
@@ -1510,40 +1513,40 @@ function VehicleDashboardPage() {
 
               <div>
                 <div className="flex items-center gap-3">
-                  <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
+                  <h1 className="font-display text-2xl font-bold tracking-tight text-[#111827] md:text-3xl">
                     {car.make} {car.model}
                   </h1>
                   {colorInfo && (
                     <div
-                      className="h-4 w-4 rounded-full border border-white/30"
+                      className="h-4 w-4 rounded-full shadow-[inset_0_0_0_1.5px_rgba(255,255,255,0.8),0px_2px_8px_rgba(0,0,0,0.18)]"
                       style={{ backgroundColor: colorInfo.hex }}
                       title={colorInfo.label}
                     />
                   )}
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[#6B7280]">
                   {car.year && <span>{car.year}</span>}
                   {bodyTypeInfo && (
                     <>
-                      <span className="text-white/20">•</span>
+                      <span className="text-[#c7ced6]">•</span>
                       <span>{bodyTypeInfo.label}</span>
                     </>
                   )}
                   {fuelTypeInfo && (
                     <>
-                      <span className="text-white/20">•</span>
+                      <span className="text-[#c7ced6]">•</span>
                       <span>{fuelTypeInfo.label}</span>
                     </>
                   )}
                   {transmissionInfo && (
                     <>
-                      <span className="text-white/20">•</span>
+                      <span className="text-[#c7ced6]">•</span>
                       <span>{transmissionInfo.label}</span>
                     </>
                   )}
                 </div>
                 {car.license_plate && (
-                  <div className="mt-2 inline-flex rounded-lg border border-white/15 bg-white/5 px-3 py-1 font-mono text-sm">
+                  <div className="mt-2 inline-flex rounded-lg bg-[#f5f7fa] px-3 py-1 font-mono text-sm text-[#374151] shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
                     {car.license_plate}
                   </div>
                 )}
@@ -1553,14 +1556,14 @@ function VehicleDashboardPage() {
             {/* Quick stats */}
             <div className="flex gap-4">
               {typeof currentMileage === "number" && (
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center">
-                  <p className="text-2xl font-bold text-white">{currentMileage.toLocaleString("sq-AL")}</p>
-                  <p className="text-xs text-slate-400">km</p>
+                <div className="rounded-2xl bg-white px-5 py-4 text-center shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
+                  <p className="text-2xl font-bold text-[#111827]">{currentMileage.toLocaleString("sq-AL")}</p>
+                  <p className="text-xs text-[#6B7280]">km</p>
                 </div>
               )}
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center">
-                <p className="text-2xl font-bold text-mint">{documents.length}</p>
-                <p className="text-xs text-slate-400">dokumente</p>
+              <div className="rounded-2xl bg-white px-5 py-4 text-center shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
+                <p className="text-2xl font-bold text-[#2D3A3A]">{documents.length}</p>
+                <p className="text-xs text-[#6B7280]">dokumente</p>
               </div>
             </div>
           </div>
@@ -1577,8 +1580,8 @@ function VehicleDashboardPage() {
                 disabled={saving}
                 className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
                   activeTab === tab.key
-                    ? "bg-mint/10 text-mint"
-                    : "text-slate-400 hover:bg-white/5 hover:text-white"
+                    ? "bg-[#e7f1ee] text-[#2D3A3A] shadow-[0px_10px_30px_rgba(0,0,0,0.05)]"
+                    : "text-[#6B7280] hover:bg-white hover:text-[#1F2937]"
                 } ${saving ? "cursor-not-allowed opacity-60" : ""}`}
               >
                 {tab.label}
@@ -1595,12 +1598,12 @@ function VehicleDashboardPage() {
           <div className="space-y-8">
             {/* Urgent alerts */}
             {urgentDocuments.length > 0 && showOverviewAlert && (
-              <section className="rounded-3xl border border-red-500/20 bg-gradient-to-br from-red-500/10 to-red-900/5 p-6">
+              <section className="rounded-3xl bg-[#fff4f2] p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
                 <div className="flex items-center gap-3">
-                  <div className="h-3 w-3 rounded-full bg-red-400" />
+                  <div className="h-3 w-3 rounded-full bg-[#e76e50]" />
                   <div>
-                    <h2 className="font-display text-lg font-bold text-red-300">Vëmendje!</h2>
-                    <p className="text-sm text-red-300/70">
+                    <h2 className="font-display text-lg font-bold text-[#b42318]">Vëmendje!</h2>
+                    <p className="text-sm text-[#c2410c]">
                       {urgentDocuments.length} dokument{urgentDocuments.length > 1 ? "e" : ""} po skadon së shpejti
                     </p>
                   </div>
@@ -1612,19 +1615,19 @@ function VehicleDashboardPage() {
                     return (
                       <div
                         key={doc.id}
-                        className="flex items-center justify-between rounded-xl border border-white/10 bg-deep/50 p-4"
+                        className="flex items-center justify-between rounded-xl bg-white p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]"
                       >
                         <div className="flex items-center gap-3">
                           <div>
-                            <p className="font-semibold">{docType.label}</p>
-                            <p className="text-xs text-slate-400">Skadon: {formatDate(doc.expires_on)}</p>
+                            <p className="font-semibold text-[#1F2937]">{docType.label}</p>
+                            <p className="text-xs text-[#6B7280]">Skadon: {formatDate(doc.expires_on)}</p>
                           </div>
                         </div>
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-bold ${
                             status.color === "red"
-                              ? "bg-red-500/20 text-red-300"
-                              : "bg-amber-500/20 text-amber-300"
+                              ? "bg-[#fee4e2] text-[#b42318]"
+                              : "bg-[#fef3c7] text-[#b45309]"
                           }`}
                         >
                           {status.label}
@@ -1668,13 +1671,13 @@ function VehicleDashboardPage() {
             {/* Recent activity */}
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Recent documents */}
-              <section className="rounded-3xl border border-white/10 bg-slate-900/50 p-6">
+              <section className="dashboard-panel rounded-3xl p-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-display text-lg font-bold">Dokumentet</h3>
+                  <h3 className="font-display text-lg font-bold text-[#1F2937]">Dokumentet</h3>
                   <button
                     type="button"
                     onClick={() => setActiveTab("documents")}
-                    className="text-sm text-mint hover:underline"
+                    className="text-sm font-semibold text-[#2D3A3A] hover:underline"
                   >
                     Shiko të gjitha
                   </button>
@@ -1684,7 +1687,7 @@ function VehicleDashboardPage() {
                     <DocumentRow key={doc.id} document={doc} />
                   ))}
                   {documents.length === 0 && (
-                    <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
+                    <div className="dashboard-empty-state rounded-xl p-4 text-sm">
                       Nuk ka dokumente ende.
                     </div>
                   )}
@@ -1692,13 +1695,13 @@ function VehicleDashboardPage() {
               </section>
 
               {/* Recent services */}
-              <section className="rounded-3xl border border-white/10 bg-slate-900/50 p-6">
+              <section className="dashboard-panel rounded-3xl p-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-display text-lg font-bold">Servisimet e Fundit</h3>
+                  <h3 className="font-display text-lg font-bold text-[#1F2937]">Servisimet e Fundit</h3>
                   <button
                     type="button"
                     onClick={() => setActiveTab("services")}
-                    className="text-sm text-mint hover:underline"
+                    className="text-sm font-semibold text-[#2D3A3A] hover:underline"
                   >
                     Shiko të gjitha
                   </button>
@@ -1708,7 +1711,7 @@ function VehicleDashboardPage() {
                     <ServiceRow key={service.id} service={service} />
                   ))}
                   {activeServiceRecords.length === 0 && (
-                    <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
+                    <div className="dashboard-empty-state rounded-xl p-4 text-sm">
                       Nuk ka servisime ende.
                     </div>
                   )}
@@ -1725,7 +1728,7 @@ function VehicleDashboardPage() {
               <h2 className="font-display text-xl font-bold">Dokumentet e Veturës</h2>
             </div>
 
-            <form onSubmit={handleCreateDocument} className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/50 p-5">
+            <form onSubmit={handleCreateDocument} className="dashboard-panel space-y-4 rounded-2xl p-5">
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="text-sm text-slate-300">
                     Lloji i dokumentit
@@ -1880,7 +1883,7 @@ function VehicleDashboardPage() {
                 </button>
               </form>
 
-            <section className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/50 p-5">
+            <section className="dashboard-panel space-y-4 rounded-2xl p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-display text-lg font-semibold text-white">Lista dhe filtrimi i dokumenteve</h3>
                 <div className="flex flex-wrap gap-2">
@@ -1940,7 +1943,7 @@ function VehicleDashboardPage() {
           <div className="space-y-6">
             <h2 className="font-display text-xl font-bold">Historia e Servisimeve</h2>
 
-            <form onSubmit={handleCreateService} className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/50 p-5">
+            <form onSubmit={handleCreateService} className="dashboard-panel space-y-4 rounded-2xl p-5">
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="text-sm text-slate-300">
                     Lloji i servisimit
@@ -2179,7 +2182,7 @@ function VehicleDashboardPage() {
               </form>
 
             {activeServiceRecords.length === 0 ? (
-              <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-6 text-sm text-slate-400">
+              <div className="dashboard-empty-state rounded-2xl p-6 text-sm">
                 Nuk ka servisime ende.
               </div>
             ) : (
@@ -2209,7 +2212,7 @@ function VehicleDashboardPage() {
               </div>
             </div>
 
-            <form onSubmit={handleCreateExpense} className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/50 p-5">
+            <form onSubmit={handleCreateExpense} className="dashboard-panel space-y-4 rounded-2xl p-5">
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="text-sm text-slate-300">
                     Data
@@ -2281,7 +2284,7 @@ function VehicleDashboardPage() {
               </form>
 
             {expenses.length === 0 ? (
-              <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-6 text-sm text-slate-400">
+              <div className="dashboard-empty-state rounded-2xl p-6 text-sm">
                 Nuk ka shpenzime ende.
               </div>
             ) : (
@@ -2302,7 +2305,7 @@ function VehicleDashboardPage() {
 
         {activeTab === "reports" && (
           <div className="space-y-6">
-            <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+            <div className="dashboard-panel flex flex-wrap items-end gap-3 rounded-2xl p-4">
               <label className="text-sm text-slate-300">
                 Viti
                 <select
@@ -2367,7 +2370,7 @@ function VehicleDashboardPage() {
               </button>
 
               {showReportMileage && (
-                <section className="mt-2 w-full rounded-2xl border border-mint/20 bg-gradient-to-r from-mint/10 to-emerald-500/5 p-4">
+                <section className="mt-2 w-full rounded-2xl bg-[linear-gradient(145deg,#f6fbf9,#eef6f4)] p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h3 className="font-display text-lg font-bold">Kilometrazhi i veturës</h3>
@@ -2437,7 +2440,7 @@ function VehicleDashboardPage() {
 
             {reportEventFilter === "all" ? (
               <div className="space-y-6">
-                <section className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+                <section className="dashboard-panel rounded-2xl p-4">
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="font-display text-lg font-bold">Dokumente</h3>
                     <div className="flex items-center gap-2">
@@ -2467,13 +2470,13 @@ function VehicleDashboardPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
+                    <div className="dashboard-empty-state rounded-xl p-4 text-sm">
                       Nuk ka dokumente për filtrin aktual.
                     </div>
                   )}
                 </section>
 
-                <section className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+                <section className="dashboard-panel rounded-2xl p-4">
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="font-display text-lg font-bold">Servisime</h3>
                     <div className="flex items-center gap-2">
@@ -2503,13 +2506,13 @@ function VehicleDashboardPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
+                    <div className="dashboard-empty-state rounded-xl p-4 text-sm">
                       Nuk ka servisime për filtrin aktual.
                     </div>
                   )}
                 </section>
 
-                <section className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+                <section className="dashboard-panel rounded-2xl p-4">
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="font-display text-lg font-bold">Shpenzime</h3>
                     <div className="flex items-center gap-2">
@@ -2539,14 +2542,14 @@ function VehicleDashboardPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-white/10 bg-deep/30 p-4 text-sm text-slate-400">
+                    <div className="dashboard-empty-state rounded-xl p-4 text-sm">
                       Nuk ka shpenzime për filtrin aktual.
                     </div>
                   )}
                 </section>
               </div>
             ) : (
-              <section className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+              <section className="dashboard-panel space-y-4 rounded-2xl p-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-display text-lg font-bold">Historia e plotë</h3>
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-300">
@@ -2618,7 +2621,7 @@ function VehicleDashboardPage() {
                     })}
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-white/10 bg-deep/30 p-6 text-center text-sm text-slate-400">
+                  <div className="dashboard-empty-state rounded-xl p-6 text-center text-sm">
                     Nuk ka histori për filtrin aktual.
                   </div>
                 )}
@@ -2647,32 +2650,32 @@ function StatCard({
   onClick?: () => void;
 }) {
   const colorClasses = {
-    mint: "from-mint/10 to-emerald-500/5 border-mint/20",
-    blue: "from-blue-500/10 to-blue-900/5 border-blue-500/20",
-    purple: "from-purple-500/10 to-purple-900/5 border-purple-500/20",
-    amber: "from-amber-500/10 to-amber-900/5 border-amber-500/20",
-    slate: "from-slate-500/10 to-slate-900/5 border-slate-500/20"
+    mint: "bg-[linear-gradient(145deg,#f7fbfa,#eef8f4)] text-[#2D3A3A]",
+    blue: "bg-[linear-gradient(145deg,#f7fafe,#eef4fb)] text-[#285a74]",
+    purple: "bg-[linear-gradient(145deg,#fbf8fe,#f4eefb)] text-[#6b4ea0]",
+    amber: "bg-[linear-gradient(145deg,#fffaf2,#fdf3df)] text-[#b45309]",
+    slate: "bg-[linear-gradient(145deg,#f8fafc,#eff3f7)] text-[#475467]"
   };
 
-  const className = `rounded-2xl border bg-gradient-to-br p-5 ${colorClasses[color]} ${
-    onClick ? "cursor-pointer transition hover:border-mint/30" : ""
+  const className = `rounded-2xl p-5 shadow-[0px_10px_30px_rgba(0,0,0,0.05)] ${colorClasses[color]} ${
+    onClick ? "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-[0px_16px_38px_rgba(0,0,0,0.08)]" : ""
   }`;
 
   if (onClick) {
     return (
       <button type="button" onClick={onClick} className={className}>
-        <div className="text-left text-sm text-slate-400">{label}</div>
-        <p className="mt-3 text-left text-2xl font-bold">{value}</p>
-        {sublabel ? <p className="mt-1 text-left text-xs text-slate-400">{sublabel}</p> : null}
+        <div className="text-left text-sm text-[#6B7280]">{label}</div>
+        <p className="mt-3 text-left text-2xl font-bold text-[#1F2937]">{value}</p>
+        {sublabel ? <p className="mt-1 text-left text-xs text-[#6B7280]">{sublabel}</p> : null}
       </button>
     );
   }
 
   return (
     <div className={className}>
-      <div className="text-sm text-slate-400">{label}</div>
-      <p className="mt-3 text-2xl font-bold">{value}</p>
-      {sublabel ? <p className="mt-1 text-xs text-slate-400">{sublabel}</p> : null}
+      <div className="text-sm text-[#6B7280]">{label}</div>
+      <p className="mt-3 text-2xl font-bold text-[#1F2937]">{value}</p>
+      {sublabel ? <p className="mt-1 text-xs text-[#6B7280]">{sublabel}</p> : null}
     </div>
   );
 }
@@ -2682,20 +2685,20 @@ function DocumentRow({ document }: { document: DocumentRow }) {
   const docType = DOCUMENT_TYPES[document.document_type] || DOCUMENT_TYPES.other;
 
   const statusColors = {
-    red: "text-red-400",
-    amber: "text-amber-400",
-    yellow: "text-yellow-400",
-    emerald: "text-emerald-400",
-    slate: "text-slate-400"
+    red: "text-[#b42318]",
+    amber: "text-[#b45309]",
+    yellow: "text-[#b45309]",
+    emerald: "text-[#2D6A4F]",
+    slate: "text-[#6B7280]"
   };
 
   return (
-    <div className="flex items-center justify-between rounded-xl border border-white/10 bg-deep/30 p-3">
+    <div className="flex items-center justify-between rounded-xl bg-[#f8fafc] p-3 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
       <div>
-        <p className="font-medium">{docType.label}</p>
-        {document.expires_on && <p className="text-xs text-slate-400">{formatDate(document.expires_on)}</p>}
+        <p className="font-medium text-[#1F2937]">{docType.label}</p>
+        {document.expires_on && <p className="text-xs text-[#6B7280]">{formatDate(document.expires_on)}</p>}
         {document.file_url && (
-          <a href={document.file_url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-mint hover:underline">
+          <a href={document.file_url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[#2D3A3A] hover:underline">
             Hap skedarin
           </a>
         )}
@@ -2733,19 +2736,19 @@ function DocumentCard({
   };
 
   return (
-    <div className={`rounded-2xl border bg-gradient-to-br p-5 ${bgColors[status.color as keyof typeof bgColors]}`}>
+    <div className={`rounded-2xl p-5 shadow-[0px_10px_30px_rgba(0,0,0,0.05)] ${bgColors[status.color as keyof typeof bgColors]}`}>
       <div className="flex items-start justify-between gap-3">
-        <span className="text-sm font-semibold text-slate-300">{docType.label}</span>
+        <span className="text-sm font-semibold text-[#6B7280]">{docType.label}</span>
         <div className="flex items-center gap-2">
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-bold ${
               status.color === "red"
-                ? "bg-red-500/20 text-red-300"
+                ? "bg-[#fee4e2] text-[#b42318]"
                 : status.color === "amber"
-                  ? "bg-amber-500/20 text-amber-300"
+                  ? "bg-[#fef3c7] text-[#b45309]"
                   : status.color === "emerald"
-                    ? "bg-emerald-500/20 text-emerald-300"
-                    : "bg-slate-500/20 text-slate-300"
+                    ? "bg-[#dcfce7] text-[#166534]"
+                    : "bg-[#eef2f6] text-[#6B7280]"
             }`}
           >
             {status.label}
@@ -2755,7 +2758,7 @@ function DocumentCard({
               <button
                 type="button"
                 onClick={() => onEdit(document)}
-                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
+                className="rounded-lg bg-[#f3f4f6] px-3 py-1.5 text-xs font-semibold text-[#374151] transition hover:bg-[#e5e7eb]"
               >
                 Editoje
               </button>
@@ -2770,14 +2773,14 @@ function DocumentCard({
           ) : null}
         </div>
       </div>
-      <h4 className="mt-4 font-display text-lg font-bold">{document.reference_number || docType.label}</h4>
-      <div className="mt-3 space-y-1 text-sm text-slate-400">
+      <h4 className="mt-4 font-display text-lg font-bold text-[#1F2937]">{document.reference_number || docType.label}</h4>
+      <div className="mt-3 space-y-1 text-sm text-[#6B7280]">
         <p>Lloji: {docType.label}</p>
         {document.expires_on && <p>Skadon: {formatDate(document.expires_on)}</p>}
         <p>Statusi: {reportStatus === "expired" ? "Skaduar" : reportStatus === "expiring" ? "Po skadon" : "OK"}</p>
         {document.issuer && <p>Lëshuar nga: {document.issuer}</p>}
         {document.file_url && (
-          <a href={document.file_url} target="_blank" rel="noreferrer" className="text-mint hover:underline">
+          <a href={document.file_url} target="_blank" rel="noreferrer" className="text-[#2D3A3A] hover:underline">
             Hap skedarin
           </a>
         )}
@@ -2788,12 +2791,12 @@ function DocumentCard({
 
 function ServiceRow({ service }: { service: ServiceRecordRow }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-white/10 bg-deep/30 p-3">
+    <div className="flex items-center justify-between rounded-xl bg-[#f8fafc] p-3 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
       <div>
-        <p className="font-medium">{service.service_type}</p>
-        <p className="text-xs text-slate-400">{formatDate(service.service_date)}</p>
+        <p className="font-medium text-[#1F2937]">{service.service_type}</p>
+        <p className="text-xs text-[#6B7280]">{formatDate(service.service_date)}</p>
       </div>
-      {service.cost > 0 ? <span className="font-semibold text-mint">{formatCurrency(service.cost)}</span> : null}
+      {service.cost > 0 ? <span className="font-semibold text-[#2D3A3A]">{formatCurrency(service.cost)}</span> : null}
     </div>
   );
 }
@@ -2810,18 +2813,18 @@ function ServiceCard({
   showActions?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-5">
+    <div className="rounded-2xl bg-white p-5 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
       <div className="flex items-start justify-between">
         <div>
-          <h4 className="font-display text-lg font-bold">{service.service_type}</h4>
-          <p className="text-sm text-slate-400">{formatDate(service.service_date)}</p>
+          <h4 className="font-display text-lg font-bold text-[#1F2937]">{service.service_type}</h4>
+          <p className="text-sm text-[#6B7280]">{formatDate(service.service_date)}</p>
         </div>
         {showActions ? (
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => onEdit(service)}
-              className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
+              className="rounded-lg bg-[#f3f4f6] px-3 py-1.5 text-xs font-semibold text-[#374151] transition hover:bg-[#e5e7eb]"
             >
               Editoje
             </button>
@@ -2837,22 +2840,22 @@ function ServiceCard({
       </div>
       <div className="mt-4 flex flex-wrap gap-2 text-xs">
         {service.provider && (
-          <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+          <span className="rounded-full bg-[#f5f7fa] px-2.5 py-1 text-[#6B7280]">
             {service.provider}
           </span>
         )}
         {isOilChangeServiceType(service.service_type) && service.mileage && (
-          <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+          <span className="rounded-full bg-[#f5f7fa] px-2.5 py-1 text-[#6B7280]">
             {service.mileage.toLocaleString("sq-AL")} km
           </span>
         )}
         {service.next_service_due_at && (
-          <span className="rounded-full border border-mint/20 bg-mint/10 px-2.5 py-1 text-mint">
+          <span className="rounded-full bg-[#e7f1ee] px-2.5 py-1 text-[#2D3A3A]">
             Tjetra: {formatDate(service.next_service_due_at)}
           </span>
         )}
       </div>
-      {service.notes && <p className="mt-3 text-sm text-slate-400">{service.notes}</p>}
+      {service.notes && <p className="mt-3 text-sm text-[#6B7280]">{service.notes}</p>}
     </div>
   );
 }
@@ -2871,23 +2874,23 @@ function ExpenseCard({
   const receiptUrl = extractFirstUrl(expense.notes);
 
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-900/50 p-4">
+    <div className="rounded-xl bg-white p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold">{expense.category}</p>
-          <p className="text-xs text-slate-400">
+          <p className="font-semibold text-[#1F2937]">{expense.category}</p>
+          <p className="text-xs text-[#6B7280]">
             {formatDate(expense.expense_date)}
             {expense.vendor && ` • ${expense.vendor}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-lg font-bold text-mint">{formatCurrency(expense.amount)}</span>
+          <span className="text-lg font-bold text-[#2D3A3A]">{formatCurrency(expense.amount)}</span>
           {showActions ? (
             <>
               <button
                 type="button"
                 onClick={() => onEdit(expense)}
-                className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
+                className="rounded-lg bg-[#f3f4f6] px-3 py-1.5 text-xs font-semibold text-[#374151] transition hover:bg-[#e5e7eb]"
               >
                 Editoje
               </button>
@@ -2902,13 +2905,13 @@ function ExpenseCard({
           ) : null}
         </div>
       </div>
-      {expense.notes && <p className="mt-3 text-sm text-slate-400 whitespace-pre-line">{expense.notes}</p>}
+      {expense.notes && <p className="mt-3 whitespace-pre-line text-sm text-[#6B7280]">{expense.notes}</p>}
       {receiptUrl && (
         <a
           href={receiptUrl}
           target="_blank"
           rel="noreferrer"
-          className="mt-2 inline-flex text-sm font-semibold text-mint hover:underline"
+          className="mt-2 inline-flex text-sm font-semibold text-[#2D3A3A] hover:underline"
         >
           Hap foton/kuponin
         </a>

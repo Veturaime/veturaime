@@ -1,5 +1,5 @@
 import type { VehicleData } from "./database.types";
-import { SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from "./supabase";
+import { supabase } from "./supabase";
 
 const GENERATED_PLACEHOLDER_PREFIX = "data:image/svg+xml,";
 const vehicleImageRequestCache = new Map<string, Promise<string>>();
@@ -363,71 +363,65 @@ async function fetchCarsXeImage(
   }
 
   try {
-    const {
-      data: { session }
-    } = await supabase.auth.getSession();
+    const ensureFreshSession = async () => {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
 
-    let authToken = session?.access_token ?? SUPABASE_ANON_KEY;
+      if (!session?.access_token) {
+        return false;
+      }
 
-    if (!authToken) {
-      return fetchCarsXeImageDirect(make, model, year, color);
-    }
+      if (session.expires_at && session.expires_at * 1000 <= Date.now() + 5000) {
+        const { data: refreshedData, error } = await supabase.auth.refreshSession();
+        return !error && Boolean(refreshedData.session?.access_token);
+      }
 
-    if (!session?.access_token) {
-      return fetchCarsXeImageDirect(make, model, year, color);
-    }
-
-    if (session.expires_at && session.expires_at * 1000 <= Date.now() + 5000) {
-      const { data: refreshedData } = await supabase.auth.refreshSession();
-      authToken = refreshedData.session?.access_token ?? authToken;
-    }
+      return true;
+    };
 
     const invokeVehicleImage = async () => {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/vehicle-image`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`,
-          apikey: SUPABASE_ANON_KEY
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke<{
+        imageUrl?: string | null;
+        provider?: string | null;
+        error?: string;
+      }>("vehicle-image", {
+        body: {
           make,
           model,
           year: year ?? null,
           color: color ?? null
-        })
+        }
       });
 
-      let payload: { imageUrl?: string | null; provider?: string | null; error?: string } | null = null;
-
-      try {
-        payload = (await response.json()) as { imageUrl?: string | null; provider?: string | null; error?: string };
-      } catch {
-        payload = null;
-      }
-
       return {
-        data: response.ok ? payload : null,
-        error: response.ok
-          ? null
-          : {
-              status: response.status,
-              message: payload?.error || response.statusText || "Vehicle image request failed."
-            }
+        data: error ? null : (data ?? null),
+        error
       };
     };
 
+    const hasValidSession = await ensureFreshSession();
+
+    if (!hasValidSession) {
+      return fetchCarsXeImageDirect(make, model, year, color);
+    }
+
     let { data, error } = await invokeVehicleImage();
 
-    const isUnauthorized =
-      !!error &&
-      (String((error as { status?: number }).status ?? "") === "401" ||
-        error.message.toLowerCase().includes("unauthorized") ||
-        error.message.toLowerCase().includes("jwt"));
+    const errorStatus =
+      typeof (error as { context?: { status?: number } } | null)?.context?.status === "number"
+        ? (error as { context?: { status?: number } }).context?.status ?? null
+        : null;
+    const errorMessage = error?.message.toLowerCase() ?? "";
+    const isUnauthorized = errorStatus === 401 || errorMessage.includes("unauthorized") || errorMessage.includes("jwt");
 
     if (isUnauthorized) {
-      const { data: refreshedData } = await supabase.auth.refreshSession();
-      authToken = refreshedData.session?.access_token ?? SUPABASE_ANON_KEY;
+      const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+
+      if (refreshError || !refreshedData.session?.access_token) {
+        return fetchCarsXeImageDirect(make, model, year, color);
+      }
+
       const retryResult = await invokeVehicleImage();
       data = retryResult.data;
       error = retryResult.error;

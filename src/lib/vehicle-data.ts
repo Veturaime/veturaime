@@ -1,5 +1,5 @@
 import type { VehicleData } from "./database.types";
-import { supabase } from "./supabase";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from "./supabase";
 
 const GENERATED_PLACEHOLDER_PREFIX = "data:image/svg+xml,";
 const vehicleImageRequestCache = new Map<string, Promise<string>>();
@@ -367,26 +367,55 @@ async function fetchCarsXeImage(
       data: { session }
     } = await supabase.auth.getSession();
 
+    let authToken = session?.access_token ?? SUPABASE_ANON_KEY;
+
+    if (!authToken) {
+      return fetchCarsXeImageDirect(make, model, year, color);
+    }
+
     if (!session?.access_token) {
       return fetchCarsXeImageDirect(make, model, year, color);
     }
 
     if (session.expires_at && session.expires_at * 1000 <= Date.now() + 5000) {
-      await supabase.auth.refreshSession();
+      const { data: refreshedData } = await supabase.auth.refreshSession();
+      authToken = refreshedData.session?.access_token ?? authToken;
     }
 
-    const invokeVehicleImage = () =>
-      supabase.functions.invoke<{
-        imageUrl?: string | null;
-        provider?: string | null;
-      }>("vehicle-image", {
-        body: {
+    const invokeVehicleImage = async () => {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/vehicle-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+          apikey: SUPABASE_ANON_KEY
+        },
+        body: JSON.stringify({
           make,
           model,
           year: year ?? null,
           color: color ?? null
-        }
+        })
       });
+
+      let payload: { imageUrl?: string | null; provider?: string | null; error?: string } | null = null;
+
+      try {
+        payload = (await response.json()) as { imageUrl?: string | null; provider?: string | null; error?: string };
+      } catch {
+        payload = null;
+      }
+
+      return {
+        data: response.ok ? payload : null,
+        error: response.ok
+          ? null
+          : {
+              status: response.status,
+              message: payload?.error || response.statusText || "Vehicle image request failed."
+            }
+      };
+    };
 
     let { data, error } = await invokeVehicleImage();
 
@@ -397,7 +426,8 @@ async function fetchCarsXeImage(
         error.message.toLowerCase().includes("jwt"));
 
     if (isUnauthorized) {
-      await supabase.auth.refreshSession();
+      const { data: refreshedData } = await supabase.auth.refreshSession();
+      authToken = refreshedData.session?.access_token ?? SUPABASE_ANON_KEY;
       const retryResult = await invokeVehicleImage();
       data = retryResult.data;
       error = retryResult.error;

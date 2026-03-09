@@ -170,20 +170,23 @@ function CarSetupPage() {
   };
 
   return (
-    <main className="relative min-h-screen bg-deep px-4 py-8 font-body text-white antialiased md:py-12">
-      {/* Background */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(72,242,194,0.05),transparent_50%),radial-gradient(ellipse_at_bottom_left,rgba(20,39,58,0.4),transparent_50%)]" />
+    <main className="relative min-h-screen overflow-hidden bg-[#F9FAFB] px-4 py-8 font-body text-[#1F2937] antialiased md:py-12">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-28 top-0 h-80 w-80 rounded-full bg-[#b8c8c5]/20 blur-3xl" />
+        <div className="absolute -right-24 top-1/3 h-96 w-96 rounded-full bg-[#c8d8eb]/20 blur-3xl" />
+        <div className="absolute bottom-[-160px] left-1/3 h-[430px] w-[430px] rounded-full bg-[#2D3A3A]/[0.04] blur-3xl" />
+      </div>
 
       <div className="relative z-10 mx-auto max-w-3xl">
         {/* Header */}
         <div className="mb-8 text-center">
-          <p className="text-sm font-semibold uppercase tracking-widest text-mint/80">Konfigurimi i Veturës</p>
-          <h1 className="mt-3 font-display text-3xl font-bold tracking-tight md:text-4xl">
+          <p className="text-sm font-semibold uppercase tracking-widest text-[#4d675f]">Konfigurimi i Veturës</p>
+          <h1 className="mt-3 font-display text-3xl font-bold tracking-tight text-[#1F2937] md:text-4xl">
             {step === "identify" && "Identifikoni Veturën Tuaj"}
             {step === "details" && "Detajet e Veturës"}
             {step === "preview" && "Konfirmoni Veturën"}
           </h1>
-          <p className="mt-2 text-slate-400">
+          <p className="mt-2 text-[#6B7280]">
             {step === "identify" && "Zgjidhni markën, modelin dhe vitin e veturës suaj"}
             {step === "details" && "Plotësoni informacionet shtesë për menaxhim më të mirë"}
             {step === "preview" && "Rishikoni dhe konfirmoni informacionin"}
@@ -197,10 +200,10 @@ function CarSetupPage() {
               <div
                 className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition ${
                   step === s
-                    ? "bg-mint text-deep"
+                    ? "bg-[#2D3A3A] text-white"
                     : i < ["identify", "details", "preview"].indexOf(step)
-                      ? "bg-mint/30 text-mint"
-                      : "bg-white/10 text-slate-500"
+                      ? "bg-[#dce9e6] text-[#2D3A3A]"
+                      : "bg-[#e8edf2] text-[#94a3b8]"
                 }`}
               >
                 {i + 1}
@@ -208,7 +211,7 @@ function CarSetupPage() {
               {i < 2 && (
                 <div
                   className={`h-0.5 w-8 rounded ${
-                    i < ["identify", "details", "preview"].indexOf(step) ? "bg-mint/50" : "bg-white/10"
+                    i < ["identify", "details", "preview"].indexOf(step) ? "bg-[#b9cec9]" : "bg-[#e5e7eb]"
                   }`}
                 />
               )}
@@ -217,14 +220,14 @@ function CarSetupPage() {
         </div>
 
         {/* Main card */}
-        <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-[0_40px_100px_rgba(0,0,0,0.5)] backdrop-blur-xl md:p-8">
+        <div className="rounded-3xl bg-white p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.05)] md:p-8">
           {/* Step 1: Identify */}
           {step === "identify" && (
             <div className="space-y-6">
               {/* Make selection */}
               <div className="relative">
-                <label className="mb-2 block text-sm font-semibold text-slate-300">
-                  Marka <span className="text-red-400">*</span>
+                <label className="mb-2 block text-sm font-semibold text-[#374151]">
+                  Marka <span className="text-[#b42318]">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -254,7 +257,7 @@ function CarSetupPage() {
                       }, 200);
                     }}
                     placeholder="p.sh. Mercedes-Benz, Volkswagen, Audi..."
-                    className="h-14 w-full rounded-xl border border-white/15 bg-deep/50 px-4 text-white placeholder-slate-500 transition focus:border-mint/50 focus:outline-none focus:ring-2 focus:ring-mint/20"
+                    className="h-14 w-full rounded-xl border border-[#e5e7eb] bg-[#f8fafc] px-4 text-[#1F2937] placeholder-[#9ca3af] transition focus:border-[#9eb8b2] focus:outline-none focus:ring-2 focus:ring-[#b9cec9]/50"
                   />
                   {(make || makeSearch) && (
                     <button
@@ -267,14 +270,14 @@ function CarSetupPage() {
                         setModelSearch("");
                         setShowMakeDropdown(false);
                       }}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#1F2937]"
                     >
                       ✕
                     </button>
                   )}
                 </div>
                 {showMakeDropdown && (
-                  <div className="absolute z-20 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-white/15 bg-slate-900 shadow-xl">
+                  <div className="absolute z-20 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-[#e5e7eb] bg-white shadow-[0px_10px_30px_rgba(0,0,0,0.08)]">
                     {filteredMakes.map((m) => (
                       <button
                         key={m}
@@ -287,15 +290,15 @@ function CarSetupPage() {
                           setModel("");
                           setModelSearch("");
                         }}
-                        className={`w-full px-4 py-3 text-left transition hover:bg-white/10 ${
-                          m === make ? "bg-mint/10 text-mint" : "text-white"
+                        className={`w-full px-4 py-3 text-left transition hover:bg-[#f3f4f6] ${
+                          m === make ? "bg-[#e7f1ee] text-[#2D3A3A]" : "text-[#374151]"
                         }`}
                       >
                         {m}
                       </button>
                     ))}
                     {/* Option to add custom make if searching */}
-                    {makeSearch && !filteredMakes.some(m => m.toLowerCase() === makeSearch.toLowerCase()) && (
+                    {makeSearch && !filteredMakes.some((m) => m.toLowerCase() === makeSearch.toLowerCase()) && (
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
@@ -306,13 +309,13 @@ function CarSetupPage() {
                           setModel("");
                           setModelSearch("");
                         }}
-                        className="w-full border-t border-white/10 px-4 py-3 text-left text-mint transition hover:bg-white/10"
+                        className="w-full border-t border-[#e5e7eb] px-4 py-3 text-left text-[#2D3A3A] transition hover:bg-[#f3f4f6]"
                       >
                         + Shto "{makeSearch}" si markë
                       </button>
                     )}
                     {filteredMakes.length === 0 && !makeSearch && (
-                      <div className="px-4 py-3 text-slate-400">Asnjë rezultat</div>
+                      <div className="px-4 py-3 text-[#9ca3af]">Asnjë rezultat</div>
                     )}
                   </div>
                 )}
@@ -320,8 +323,8 @@ function CarSetupPage() {
 
               {/* Model selection */}
               <div className="relative">
-                <label className="mb-2 block text-sm font-semibold text-slate-300">
-                  Modeli <span className="text-red-400">*</span>
+                <label className="mb-2 block text-sm font-semibold text-[#374151]">
+                  Modeli <span className="text-[#b42318]">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -346,7 +349,7 @@ function CarSetupPage() {
                     }}
                     placeholder={make ? "Zgjidhni modelin..." : "Zgjidhni markën së pari"}
                     disabled={!make}
-                    className="h-14 w-full rounded-xl border border-white/15 bg-deep/50 px-4 text-white placeholder-slate-500 transition focus:border-mint/50 focus:outline-none focus:ring-2 focus:ring-mint/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-14 w-full rounded-xl border border-[#e5e7eb] bg-[#f8fafc] px-4 text-[#1F2937] placeholder-[#9ca3af] transition focus:border-[#9eb8b2] focus:outline-none focus:ring-2 focus:ring-[#b9cec9]/50 disabled:cursor-not-allowed disabled:opacity-60"
                   />
                   {(model || modelSearch) && (
                     <button
@@ -357,14 +360,14 @@ function CarSetupPage() {
                         setModelSearch("");
                         setShowModelDropdown(false);
                       }}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-[#1F2937]"
                     >
                       ✕
                     </button>
                   )}
                 </div>
                 {showModelDropdown && make && (
-                  <div className="absolute z-20 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-white/15 bg-slate-900 shadow-xl">
+                  <div className="absolute z-20 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-[#e5e7eb] bg-white shadow-[0px_10px_30px_rgba(0,0,0,0.08)]">
                     {filteredModels.map((m) => (
                       <button
                         key={m}
@@ -375,15 +378,15 @@ function CarSetupPage() {
                           setModelSearch("");
                           setShowModelDropdown(false);
                         }}
-                        className={`w-full px-4 py-3 text-left transition hover:bg-white/10 ${
-                          m === model ? "bg-mint/10 text-mint" : "text-white"
+                        className={`w-full px-4 py-3 text-left transition hover:bg-[#f3f4f6] ${
+                          m === model ? "bg-[#e7f1ee] text-[#2D3A3A]" : "text-[#374151]"
                         }`}
                       >
                         {m}
                       </button>
                     ))}
                     {/* Custom model option */}
-                    {modelSearch && !filteredModels.some(m => m.toLowerCase() === modelSearch.toLowerCase()) && (
+                    {modelSearch && !filteredModels.some((m) => m.toLowerCase() === modelSearch.toLowerCase()) && (
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
@@ -392,13 +395,13 @@ function CarSetupPage() {
                           setModelSearch("");
                           setShowModelDropdown(false);
                         }}
-                        className="w-full border-t border-white/10 px-4 py-3 text-left text-mint transition hover:bg-white/10"
+                        className="w-full border-t border-[#e5e7eb] px-4 py-3 text-left text-[#2D3A3A] transition hover:bg-[#f3f4f6]"
                       >
                         + Shto "{modelSearch}" si model
                       </button>
                     )}
                     {filteredModels.length === 0 && !modelSearch && (
-                      <div className="px-4 py-3 text-slate-400">Asnjë model i disponueshëm</div>
+                      <div className="px-4 py-3 text-[#9ca3af]">Asnjë model i disponueshëm</div>
                     )}
                   </div>
                 )}
@@ -406,11 +409,11 @@ function CarSetupPage() {
 
               {/* Year selection */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-300">Viti</label>
+                <label className="mb-2 block text-sm font-semibold text-[#374151]">Viti</label>
                 <select
                   value={year ?? ""}
                   onChange={(e) => setYear(e.target.value ? Number(e.target.value) : null)}
-                  className="h-14 w-full appearance-none rounded-xl border border-white/15 bg-deep/50 px-4 text-white transition focus:border-mint/50 focus:outline-none focus:ring-2 focus:ring-mint/20"
+                  className="h-14 w-full appearance-none rounded-xl border border-[#e5e7eb] bg-[#f8fafc] px-4 text-[#1F2937] transition focus:border-[#9eb8b2] focus:outline-none focus:ring-2 focus:ring-[#b9cec9]/50"
                 >
                   <option value="">Zgjidhni vitin...</option>
                   {years.map((y) => (
@@ -423,40 +426,40 @@ function CarSetupPage() {
 
               {/* License plate */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-300">Targa</label>
+                <label className="mb-2 block text-sm font-semibold text-[#374151]">Targa</label>
                 <input
                   type="text"
                   value={licensePlate}
                   onChange={(e) => setLicensePlate(e.target.value.toUpperCase())}
                   placeholder="p.sh. 01-ABC-123"
-                  className={`h-14 w-full rounded-xl border bg-deep/50 px-4 text-white uppercase placeholder-slate-500 transition focus:outline-none focus:ring-2 ${
+                  className={`h-14 w-full rounded-xl border bg-[#f8fafc] px-4 text-[#1F2937] uppercase placeholder-[#9ca3af] transition focus:outline-none focus:ring-2 ${
                     licensePlate && !licensePlateValid
                       ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20"
-                      : "border-white/15 focus:border-mint/50 focus:ring-mint/20"
+                      : "border-[#e5e7eb] focus:border-[#9eb8b2] focus:ring-[#b9cec9]/50"
                   }`}
                 />
                 {licensePlate && !licensePlateValid && (
-                  <p className="mt-1 text-xs text-red-400">Formati i targës nuk është i saktë</p>
+                  <p className="mt-1 text-xs text-[#b42318]">Formati i targës nuk është i saktë</p>
                 )}
               </div>
 
               {/* VIN */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-300">VIN (Numri i Shasisë)</label>
+                <label className="mb-2 block text-sm font-semibold text-[#374151]">VIN (Numri i Shasisë)</label>
                 <input
                   type="text"
                   value={vin}
                   onChange={(e) => setVin(e.target.value.toUpperCase())}
                   placeholder="17 karaktere"
                   maxLength={17}
-                  className={`h-14 w-full rounded-xl border bg-deep/50 px-4 font-mono text-white uppercase placeholder-slate-500 transition focus:outline-none focus:ring-2 ${
+                  className={`h-14 w-full rounded-xl border bg-[#f8fafc] px-4 font-mono text-[#1F2937] uppercase placeholder-[#9ca3af] transition focus:outline-none focus:ring-2 ${
                     vin && !vinValid
                       ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20"
-                      : "border-white/15 focus:border-mint/50 focus:ring-mint/20"
+                      : "border-[#e5e7eb] focus:border-[#9eb8b2] focus:ring-[#b9cec9]/50"
                   }`}
                 />
                 {vin && !vinValid && (
-                  <p className="mt-1 text-xs text-red-400">VIN duhet të ketë saktësisht 17 karaktere alfanumerike</p>
+                  <p className="mt-1 text-xs text-[#b42318]">VIN duhet të ketë saktësisht 17 karaktere alfanumerike</p>
                 )}
               </div>
 
@@ -464,7 +467,7 @@ function CarSetupPage() {
                 <button
                   type="button"
                   onClick={onSkip}
-                  className="flex h-14 flex-1 items-center justify-center rounded-xl border border-white/15 bg-white/5 font-semibold text-slate-300 transition hover:bg-white/10"
+                  className="flex h-14 flex-1 items-center justify-center rounded-xl bg-[#f3f4f6] font-semibold text-[#4b5563] shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:bg-[#e5e7eb]"
                 >
                   Kalo
                 </button>
@@ -472,11 +475,11 @@ function CarSetupPage() {
                   type="button"
                   onClick={goToDetails}
                   disabled={!canProceedToDetails}
-                  className="flex h-14 flex-[2] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-mint to-emerald-400 font-bold text-deep shadow-[0_8px_30px_rgba(72,242,194,0.25)] transition hover:shadow-[0_12px_40px_rgba(72,242,194,0.35)] disabled:cursor-not-allowed disabled:from-slate-700 disabled:to-slate-600 disabled:text-slate-400 disabled:shadow-none"
+                  className="flex h-14 flex-[2] items-center justify-center gap-2 rounded-xl bg-[#2D3A3A] font-bold text-white shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:bg-[#253030] disabled:cursor-not-allowed disabled:bg-[#9ca3af] disabled:text-white/75 disabled:shadow-none"
                 >
                   Vazhdo
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
               </div>
@@ -488,17 +491,17 @@ function CarSetupPage() {
             <div className="space-y-6">
               {/* Body type */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-300">Tipi i Karorisë</label>
+                <label className="mb-2 block text-sm font-semibold text-[#374151]">Tipi i Karorisë</label>
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                   {BODY_TYPES.map((bt) => (
                     <button
                       key={bt.value}
                       type="button"
                       onClick={() => setBodyType(bt.value)}
-                      className={`rounded-xl border p-3 text-center text-sm font-medium transition ${
+                      className={`rounded-xl p-3 text-center text-sm font-medium transition ${
                         bodyType === bt.value
-                          ? "border-mint/50 bg-mint/10 text-mint"
-                          : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                          ? "bg-[#e7f1ee] text-[#2D3A3A] shadow-[0px_10px_30px_rgba(0,0,0,0.05)]"
+                          : "bg-[#f8fafc] text-[#6B7280] hover:bg-[#f1f5f9]"
                       }`}
                     >
                       {bt.label}
@@ -509,17 +512,17 @@ function CarSetupPage() {
 
               {/* Fuel type */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-300">Karburanti</label>
+                <label className="mb-2 block text-sm font-semibold text-[#374151]">Karburanti</label>
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
                   {FUEL_TYPES.map((ft) => (
                     <button
                       key={ft.value}
                       type="button"
                       onClick={() => setFuelType(ft.value)}
-                      className={`rounded-xl border p-3 text-center text-sm font-medium transition ${
+                      className={`rounded-xl p-3 text-center text-sm font-medium transition ${
                         fuelType === ft.value
-                          ? "border-mint/50 bg-mint/10 text-mint"
-                          : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                          ? "bg-[#e7f1ee] text-[#2D3A3A] shadow-[0px_10px_30px_rgba(0,0,0,0.05)]"
+                          : "bg-[#f8fafc] text-[#6B7280] hover:bg-[#f1f5f9]"
                       }`}
                     >
                       {ft.label}
@@ -530,17 +533,17 @@ function CarSetupPage() {
 
               {/* Transmission */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-300">Transmisioni</label>
+                <label className="mb-2 block text-sm font-semibold text-[#374151]">Transmisioni</label>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {TRANSMISSION_TYPES.map((tt) => (
                     <button
                       key={tt.value}
                       type="button"
                       onClick={() => setTransmission(tt.value)}
-                      className={`rounded-xl border p-3 text-center text-sm font-medium transition ${
+                      className={`rounded-xl p-3 text-center text-sm font-medium transition ${
                         transmission === tt.value
-                          ? "border-mint/50 bg-mint/10 text-mint"
-                          : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                          ? "bg-[#e7f1ee] text-[#2D3A3A] shadow-[0px_10px_30px_rgba(0,0,0,0.05)]"
+                          : "bg-[#f8fafc] text-[#6B7280] hover:bg-[#f1f5f9]"
                       }`}
                     >
                       {tt.label}
@@ -551,21 +554,21 @@ function CarSetupPage() {
 
               {/* Color */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-300">Ngjyra</label>
+                <label className="mb-2 block text-sm font-semibold text-[#374151]">Ngjyra</label>
                 <div className="flex flex-wrap gap-2">
                   {COLORS.map((c) => (
                     <button
                       key={c.value}
                       type="button"
                       onClick={() => setColor(c.value)}
-                      className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                      className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
                         color === c.value
-                          ? "border-mint/50 bg-mint/10 text-mint"
-                          : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                          ? "bg-[#e7f1ee] text-[#2D3A3A] shadow-[0px_10px_30px_rgba(0,0,0,0.05)]"
+                          : "bg-[#f8fafc] text-[#6B7280] hover:bg-[#f1f5f9]"
                       }`}
                     >
                       <span
-                        className="h-4 w-4 rounded-full border border-white/20"
+                        className="h-4 w-4 rounded-full shadow-[inset_0_0_0_1.5px_rgba(255,255,255,0.75),0px_2px_8px_rgba(0,0,0,0.16)]"
                         style={{ backgroundColor: c.hex }}
                       />
                       {c.label}
@@ -576,17 +579,17 @@ function CarSetupPage() {
 
               {/* Usage type */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-300">Përdorimi</label>
+                <label className="mb-2 block text-sm font-semibold text-[#374151]">Përdorimi</label>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {USAGE_TYPES.map((ut) => (
                     <button
                       key={ut.value}
                       type="button"
                       onClick={() => setUsageType(ut.value)}
-                      className={`rounded-xl border p-3 text-center text-sm font-medium transition ${
+                      className={`rounded-xl p-3 text-center text-sm font-medium transition ${
                         usageType === ut.value
-                          ? "border-mint/50 bg-mint/10 text-mint"
-                          : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                          ? "bg-[#e7f1ee] text-[#2D3A3A] shadow-[0px_10px_30px_rgba(0,0,0,0.05)]"
+                          : "bg-[#f8fafc] text-[#6B7280] hover:bg-[#f1f5f9]"
                       }`}
                     >
                       {ut.label}
@@ -597,7 +600,7 @@ function CarSetupPage() {
 
               {/* Mileage */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-300">Kilometrazhi</label>
+                <label className="mb-2 block text-sm font-semibold text-[#374151]">Kilometrazhi</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -605,9 +608,9 @@ function CarSetupPage() {
                     onChange={(e) => setMileage(e.target.value ? Number(e.target.value) : null)}
                     placeholder="p.sh. 85000"
                     min={0}
-                    className="h-14 w-full rounded-xl border border-white/15 bg-deep/50 px-4 pr-14 text-white placeholder-slate-500 transition focus:border-mint/50 focus:outline-none focus:ring-2 focus:ring-mint/20"
+                    className="h-14 w-full rounded-xl border border-[#e5e7eb] bg-[#f8fafc] px-4 pr-14 text-[#1F2937] placeholder-[#9ca3af] transition focus:border-[#9eb8b2] focus:outline-none focus:ring-2 focus:ring-[#b9cec9]/50"
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">km</span>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#9ca3af]">km</span>
                 </div>
               </div>
 
@@ -615,10 +618,10 @@ function CarSetupPage() {
                 <button
                   type="button"
                   onClick={goBack}
-                  className="flex h-14 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-6 font-semibold text-white transition hover:bg-white/10"
+                  className="flex h-14 items-center justify-center gap-2 rounded-xl bg-[#f3f4f6] px-6 font-semibold text-[#4b5563] shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:bg-[#e5e7eb]"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M15 19l-7-7 7-7" />
                   </svg>
                   Mbrapa
                 </button>
@@ -626,11 +629,11 @@ function CarSetupPage() {
                   type="button"
                   onClick={goToPreview}
                   disabled={!canProceedToPreview}
-                  className="flex h-14 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-mint to-emerald-400 font-bold text-deep shadow-[0_8px_30px_rgba(72,242,194,0.25)] transition hover:shadow-[0_12px_40px_rgba(72,242,194,0.35)] disabled:cursor-not-allowed disabled:from-slate-700 disabled:to-slate-600 disabled:text-slate-400 disabled:shadow-none"
+                  className="flex h-14 flex-1 items-center justify-center gap-2 rounded-xl bg-[#2D3A3A] font-bold text-white shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:bg-[#253030] disabled:cursor-not-allowed disabled:bg-[#9ca3af] disabled:text-white/75 disabled:shadow-none"
                 >
                   Vazhdo
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
               </div>
@@ -641,22 +644,22 @@ function CarSetupPage() {
           {step === "preview" && (
             <div className="space-y-6">
               {/* Vehicle image */}
-              <div className="relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-deep/50">
+              <div className="relative aspect-video overflow-hidden rounded-2xl bg-[linear-gradient(145deg,#ffffff,#f3f7fb)] shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
                 {fetchingImage ? (
                   <div className="flex h-full items-center justify-center">
-                    <div className="h-10 w-10 animate-spin rounded-full border-2 border-mint border-t-transparent" />
+                    <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#2D3A3A] border-t-transparent" />
                   </div>
                 ) : imageUrl ? (
                   <img
                     src={imageUrl}
                     alt={`${make} ${model}`}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-contain p-6 drop-shadow-[0px_16px_24px_rgba(0,0,0,0.14)]"
                     onError={(e) => {
                       e.currentTarget.style.display = "none";
                     }}
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-slate-500">
+                  <div className="flex h-full items-center justify-center text-[#9ca3af]">
                     <svg className="h-20 w-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
                         strokeLinecap="round"
@@ -667,11 +670,11 @@ function CarSetupPage() {
                     </svg>
                   </div>
                 )}
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-deep/90 to-transparent p-4">
-                  <h2 className="font-display text-2xl font-bold">
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/80 to-transparent p-4">
+                  <h2 className="font-display text-2xl font-bold text-[#1F2937]">
                     {make} {model}
                   </h2>
-                  <p className="text-slate-300">
+                  <p className="text-[#6B7280]">
                     {year && `${year} • `}
                     {BODY_TYPES.find((b) => b.value === bodyType)?.label || "Veturë"}
                   </p>
@@ -681,59 +684,59 @@ function CarSetupPage() {
               {/* Vehicle details grid */}
               <div className="grid gap-3 sm:grid-cols-2">
                 {licensePlate && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-slate-400">Targa</p>
-                    <p className="mt-1 font-mono text-lg font-bold">{licensePlate}</p>
+                  <div className="rounded-xl bg-[#f8fafc] p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
+                    <p className="text-xs text-[#9ca3af]">Targa</p>
+                    <p className="mt-1 font-mono text-lg font-bold text-[#1F2937]">{licensePlate}</p>
                   </div>
                 )}
                 {vin && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-slate-400">VIN</p>
-                    <p className="mt-1 font-mono text-sm">{vin}</p>
+                  <div className="rounded-xl bg-[#f8fafc] p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
+                    <p className="text-xs text-[#9ca3af]">VIN</p>
+                    <p className="mt-1 font-mono text-sm text-[#1F2937]">{vin}</p>
                   </div>
                 )}
                 {fuelType && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-slate-400">Karburanti</p>
-                    <p className="mt-1 font-semibold">{FUEL_TYPES.find((f) => f.value === fuelType)?.label}</p>
+                  <div className="rounded-xl bg-[#f8fafc] p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
+                    <p className="text-xs text-[#9ca3af]">Karburanti</p>
+                    <p className="mt-1 font-semibold text-[#1F2937]">{FUEL_TYPES.find((f) => f.value === fuelType)?.label}</p>
                   </div>
                 )}
                 {transmission && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-slate-400">Transmisioni</p>
-                    <p className="mt-1 font-semibold">
+                  <div className="rounded-xl bg-[#f8fafc] p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
+                    <p className="text-xs text-[#9ca3af]">Transmisioni</p>
+                    <p className="mt-1 font-semibold text-[#1F2937]">
                       {TRANSMISSION_TYPES.find((t) => t.value === transmission)?.label}
                     </p>
                   </div>
                 )}
                 {color && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-slate-400">Ngjyra</p>
+                  <div className="rounded-xl bg-[#f8fafc] p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
+                    <p className="text-xs text-[#9ca3af]">Ngjyra</p>
                     <div className="mt-1 flex items-center gap-2">
                       <span
-                        className="h-4 w-4 rounded-full border border-white/20"
+                        className="h-4 w-4 rounded-full shadow-[inset_0_0_0_1.5px_rgba(255,255,255,0.75),0px_2px_8px_rgba(0,0,0,0.16)]"
                         style={{ backgroundColor: COLORS.find((c) => c.value === color)?.hex }}
                       />
-                      <span className="font-semibold">{COLORS.find((c) => c.value === color)?.label}</span>
+                      <span className="font-semibold text-[#1F2937]">{COLORS.find((c) => c.value === color)?.label}</span>
                     </div>
                   </div>
                 )}
                 {mileage && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-slate-400">Kilometrazhi</p>
-                    <p className="mt-1 font-semibold">{mileage.toLocaleString("sq-AL")} km</p>
+                  <div className="rounded-xl bg-[#f8fafc] p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
+                    <p className="text-xs text-[#9ca3af]">Kilometrazhi</p>
+                    <p className="mt-1 font-semibold text-[#1F2937]">{mileage.toLocaleString("sq-AL")} km</p>
                   </div>
                 )}
                 {usageType && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-xs text-slate-400">Përdorimi</p>
-                    <p className="mt-1 font-semibold">{USAGE_TYPES.find((u) => u.value === usageType)?.label}</p>
+                  <div className="rounded-xl bg-[#f8fafc] p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
+                    <p className="text-xs text-[#9ca3af]">Përdorimi</p>
+                    <p className="mt-1 font-semibold text-[#1F2937]">{USAGE_TYPES.find((u) => u.value === usageType)?.label}</p>
                   </div>
                 )}
               </div>
 
               {error && (
-                <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-sm font-medium text-red-300">
+                <div className="rounded-xl bg-[#fff2f2] px-4 py-3 text-center text-sm font-medium text-[#b42318] shadow-[0px_10px_30px_rgba(0,0,0,0.05)]">
                   {error}
                 </div>
               )}
@@ -743,10 +746,10 @@ function CarSetupPage() {
                   type="button"
                   onClick={goBack}
                   disabled={loading}
-                  className="flex h-14 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-6 font-semibold text-white transition hover:bg-white/10 disabled:opacity-50"
+                  className="flex h-14 items-center justify-center gap-2 rounded-xl bg-[#f3f4f6] px-6 font-semibold text-[#4b5563] shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:bg-[#e5e7eb] disabled:opacity-50"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.7} d="M15 19l-7-7 7-7" />
                   </svg>
                   Ndrysho
                 </button>
@@ -754,7 +757,7 @@ function CarSetupPage() {
                   type="button"
                   onClick={onSubmit}
                   disabled={loading}
-                  className="flex h-14 flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-mint to-emerald-400 font-bold text-deep shadow-[0_8px_30px_rgba(72,242,194,0.25)] transition hover:shadow-[0_12px_40px_rgba(72,242,194,0.35)] disabled:opacity-50"
+                  className="flex h-14 flex-1 items-center justify-center gap-2 rounded-xl bg-[#2D3A3A] font-bold text-white shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:bg-[#253030] disabled:opacity-50"
                 >
                   {loading ? (
                     <>

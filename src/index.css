@@ -87,3 +87,111 @@ body {
 .animate-slide-in-right {
   animation: slide-in-right 0.3s ease-out forwards;
 }
+
+.vehicle-dashboard-soft .dashboard-panel {
+  background: #ffffff;
+  box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.vehicle-dashboard-soft .dashboard-empty-state {
+  background: #f8fafc;
+  color: #6b7280;
+  box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.vehicle-dashboard-soft .bg-slate-900\/50,
+.vehicle-dashboard-soft .bg-deep\/50,
+.vehicle-dashboard-soft .bg-deep\/40,
+.vehicle-dashboard-soft .bg-deep\/35,
+.vehicle-dashboard-soft .bg-deep\/30,
+.vehicle-dashboard-soft .bg-white\/5 {
+  background: #f8fafc !important;
+  box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.vehicle-dashboard-soft .border-white\/10,
+.vehicle-dashboard-soft .border-white\/15,
+.vehicle-dashboard-soft .border-white\/20 {
+  border-color: #e5e7eb !important;
+}
+
+.vehicle-dashboard-soft h2,
+.vehicle-dashboard-soft h3,
+.vehicle-dashboard-soft h4 {
+  color: #1f2937;
+}
+
+.vehicle-dashboard-soft .text-slate-300 {
+  color: #374151 !important;
+}
+
+.vehicle-dashboard-soft .text-slate-400,
+.vehicle-dashboard-soft .text-slate-500 {
+  color: #6b7280 !important;
+}
+
+.vehicle-dashboard-soft .bg-slate-900\/50 .text-white,
+.vehicle-dashboard-soft .bg-deep\/50 .text-white,
+.vehicle-dashboard-soft .bg-deep\/40 .text-white,
+.vehicle-dashboard-soft .bg-deep\/35 .text-white,
+.vehicle-dashboard-soft .bg-deep\/30 .text-white,
+.vehicle-dashboard-soft .bg-white\/5 .text-white {
+  color: #1f2937 !important;
+}
+
+.vehicle-dashboard-soft p,
+.vehicle-dashboard-soft label,
+.vehicle-dashboard-soft span {
+  border-color: inherit;
+}
+
+.vehicle-dashboard-soft button.bg-deep {
+  background: #f3f4f6 !important;
+  color: #374151 !important;
+  border-color: #e5e7eb !important;
+}
+
+.vehicle-dashboard-soft button.bg-deep:hover {
+  background: #e5e7eb !important;
+  color: #1f2937 !important;
+}
+
+.vehicle-dashboard-soft .bg-mint\/10,
+.vehicle-dashboard-soft .bg-mint\/15 {
+  background: #e7f1ee !important;
+}
+
+.vehicle-dashboard-soft .text-mint {
+  color: #2d3a3a !important;
+}
+
+.vehicle-dashboard-soft input:not([type="file"]):not([type="checkbox"]):not([type="radio"]),
+.vehicle-dashboard-soft select,
+.vehicle-dashboard-soft textarea {
+  background: #f8fafc !important;
+  color: #1f2937 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: none;
+}
+
+.vehicle-dashboard-soft input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):focus,
+.vehicle-dashboard-soft select:focus,
+.vehicle-dashboard-soft textarea:focus {
+  outline: none;
+  border-color: #b9cec9 !important;
+  box-shadow: 0 0 0 4px rgba(185, 206, 201, 0.25) !important;
+}
+
+.vehicle-dashboard-soft input::placeholder,
+.vehicle-dashboard-soft textarea::placeholder {
+  color: #9ca3af;
+}
+
+.vehicle-dashboard-soft input[type="file"] {
+  color: #6b7280;
+}
+
+.vehicle-dashboard-soft option {
+  color: #1f2937;
+  background: #ffffff;
+}

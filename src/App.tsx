@@ -3,6 +3,7 @@ import CarSetupPage from "./pages/CarSetupPage";
 import DashboardPage from "./pages/DashboardPage";
 import DesignVariantPage from "./pages/DesignVariantPage";
 import HomePage from "./pages/HomePage";
+import CheckoutPlusPage from "./pages/CheckoutPlusPage";
 import LoginPage from "./pages/LoginPage";
 import MyGaragePage from "./pages/MyGaragePage";
 import OnboardingPage from "./pages/OnboardingPage";
@@ -17,6 +18,7 @@ function App() {
     <Routes>
       {/* Public pages */}
       <Route path="/" element={<HomePage />} />
+      <Route path="/checkout/plus" element={<CheckoutPlusPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       

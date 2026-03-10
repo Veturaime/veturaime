@@ -9,6 +9,7 @@ import type {
   ProfileRow,
   ServiceRecordRow
 } from "./database.types";
+import type { PlanStatus } from "./plans";
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -66,6 +67,7 @@ type RegisterInput = {
   fullName: string;
   email: string;
   password: string;
+  planStatus?: PlanStatus;
 };
 
 function isMissingOnboardingColumnError(errorMessage: string) {
@@ -79,6 +81,31 @@ function isMissingOnboardingColumnError(errorMessage: string) {
     normalized.includes("fuel_consumption_priority") ||
     normalized.includes("electric_future_preference")
   );
+}
+
+function isMissingPlanStatusColumnError(errorMessage: string) {
+  return errorMessage.toLowerCase().includes("plan_status");
+}
+
+function isAuthSessionMissingError(errorMessage: string) {
+  return errorMessage.toLowerCase().includes("auth session missing");
+}
+
+async function ensureUserPlanStatus(userId: string, planStatus: PlanStatus) {
+  const profilePayload: Database["public"]["Tables"]["profiles"]["Insert"] = {
+    id: userId,
+    plan_status: planStatus
+  };
+
+  const { error } = await supabase.from("profiles").upsert(profilePayload, { onConflict: "id" });
+
+  if (error) {
+    if (isMissingPlanStatusColumnError(error.message)) {
+      return;
+    }
+
+    throw new Error(error.message);
+  }
 }
 
 function isMissingDashboardSchemaError(errorMessage: string) {
@@ -182,13 +209,14 @@ function formatServiceReminderMessage(serviceType: string, diffDays: number) {
   return `Servisimi ${serviceType} është planifikuar për ${diffDays} ditë.`;
 }
 
-export async function registerWithEmail({ fullName, email, password }: RegisterInput) {
+export async function registerWithEmail({ fullName, email, password, planStatus }: RegisterInput) {
   const { data, error } = await supabase.auth.signUp({
     email: email.trim(),
     password,
     options: {
       data: {
-        full_name: fullName.trim()
+        full_name: fullName.trim(),
+        ...(planStatus ? { plan_status: planStatus } : {})
       }
     }
   });
@@ -198,6 +226,36 @@ export async function registerWithEmail({ fullName, email, password }: RegisterI
   }
 
   return data;
+}
+
+export async function startFreePlanSession() {
+  const { data: currentUserData, error: currentUserError } = await supabase.auth.getUser();
+
+  if (currentUserError && !isAuthSessionMissingError(currentUserError.message)) {
+    throw new Error(currentUserError.message);
+  }
+
+  if (currentUserData.user) {
+    if (currentUserData.user.is_anonymous) {
+      await ensureUserPlanStatus(currentUserData.user.id, "Free");
+    }
+
+    return currentUserData.user;
+  }
+
+  const { data, error } = await supabase.auth.signInAnonymously();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data.user) {
+    throw new Error("Free plan session could not be created.");
+  }
+
+  await ensureUserPlanStatus(data.user.id, "Free");
+
+  return data.user;
 }
 
 export async function quickStart(flow: "dashboard" | "register", inputValue: string) {

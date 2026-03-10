@@ -107,7 +107,7 @@ function MyGaragePage() {
 
   const onSignOut = async () => {
     await signOutCurrentUser();
-    navigate("/login", { replace: true });
+    navigate("/", { replace: true });
   };
 
   const getCarDescription = (car: CarRow) => {

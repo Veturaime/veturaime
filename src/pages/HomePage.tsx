@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import carShowcaseImage from "../../assets/blue-sports-car-.jpg";
 import brandLogo from "../../assets/logo.jpg";
+import { plans } from "../lib/plans";
 
 const quickCards = [
   {
@@ -56,7 +57,18 @@ const faqs = [
 ];
 
 function HomePage() {
+  const navigate = useNavigate();
   const [openFaq, setOpenFaq] = useState(0);
+  const freePlan = plans.free;
+  const plusPlan = plans.plus;
+
+  const onStartFreePlan = () => {
+    navigate("/register?plan=free", { replace: false });
+  };
+
+  const onStartPlusPlan = () => {
+    navigate("/checkout/plus", { replace: false });
+  };
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-white font-body text-deep antialiased">
@@ -217,24 +229,27 @@ function HomePage() {
             <article className="ui-interactive flex h-full flex-col rounded-[1rem] border border-deep/10 bg-white p-3 shadow-[0_14px_35px_rgba(20,39,58,0.10)] transition hover:-translate-y-1 hover:shadow-[0_20px_48px_rgba(20,39,58,0.14)] sm:rounded-[1.2rem] sm:p-6">
               <div className="flex items-center gap-2">
                 <span className="inline-flex h-4 w-4 rounded-full bg-slateBlue" />
-                <p className="text-xs font-semibold text-slateBlue sm:text-sm">Plani Bazë</p>
+                <p className="text-xs font-semibold text-slateBlue sm:text-sm">{freePlan.name}</p>
               </div>
 
-              <h3 className="mt-3 font-display text-3xl text-deep sm:mt-4 sm:text-4xl">0€</h3>
-              <p className="mt-1 text-[11px] text-deep/65 sm:text-xs">1 muaj falas</p>
+              <h3 className="mt-3 font-display text-3xl text-deep sm:mt-4 sm:text-4xl">{freePlan.priceLabel}</h3>
+              <p className="mt-1 text-[11px] text-deep/65 sm:text-xs">{freePlan.durationLabel}</p>
 
               <ul className="mt-4 flex-1 space-y-2 text-[11px] text-deep/80 sm:mt-5 sm:text-sm">
-                <li className="flex items-start gap-1.5 sm:gap-2"><span className="text-slateBlue">✔</span><span>Shërbime bazë për menaxhim</span></li>
-                <li className="flex items-start gap-1.5 sm:gap-2"><span className="text-slateBlue">✔</span><span>Ruajtje e dokumenteve kryesore</span></li>
-                <li className="flex items-start gap-1.5 sm:gap-2"><span className="text-slateBlue">✔</span><span>Përllogaritje e thjeshtë e shpenzimeve</span></li>
-                <li className="flex items-start gap-1.5 sm:gap-2"><span className="text-slateBlue">✔</span><span>Mbështetje standarde</span></li>
+                {freePlan.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-1.5 sm:gap-2">
+                    <span className="text-slateBlue">✔</span>
+                    <span>{feature}</span>
+                  </li>
+                ))}
               </ul>
 
               <button
                 type="button"
+                onClick={onStartFreePlan}
                 className="ui-interactive mt-5 inline-flex h-9 w-full items-center justify-center rounded-full border border-slateBlue/35 px-2 text-xs font-semibold text-slateBlue transition hover:bg-slateBlue/5 sm:mt-6 sm:h-10 sm:text-sm"
               >
-                Fillo tani
+                {freePlan.ctaLabel}
               </button>
             </article>
 
@@ -244,24 +259,27 @@ function HomePage() {
               </span>
               <div className="flex items-center gap-2">
                 <span className="inline-flex h-4 w-4 rounded-full bg-slateBlue" />
-                <p className="text-xs font-semibold text-slateBlue sm:text-sm">Bazë Plus</p>
+                <p className="text-xs font-semibold text-slateBlue sm:text-sm">{plusPlan.name}</p>
               </div>
 
-              <h3 className="mt-3 font-display text-3xl text-deep sm:mt-4 sm:text-4xl">10€</h3>
-              <p className="mt-1 text-[11px] text-deep/65 sm:text-xs">1 vit</p>
+              <h3 className="mt-3 font-display text-3xl text-deep sm:mt-4 sm:text-4xl">{plusPlan.priceLabel}</h3>
+              <p className="mt-1 text-[11px] text-deep/65 sm:text-xs">{plusPlan.durationLabel}</p>
 
               <ul className="mt-4 flex-1 space-y-2 text-[11px] text-deep/80 sm:mt-5 sm:text-sm">
-                <li className="flex items-start gap-1.5 sm:gap-2"><span className="text-slateBlue">✔</span><span>Të gjitha veçoritë e Basic</span></li>
-                <li className="flex items-start gap-1.5 sm:gap-2"><span className="text-slateBlue">✔</span><span>Njoftime të avancuara për afate</span></li>
-                <li className="flex items-start gap-1.5 sm:gap-2"><span className="text-slateBlue">✔</span><span>Raporte më të detajuara mujore</span></li>
-                <li className="flex items-start gap-1.5 sm:gap-2"><span className="text-slateBlue">✔</span><span>Mbështetje prioritare</span></li>
+                {plusPlan.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-1.5 sm:gap-2">
+                    <span className="text-slateBlue">✔</span>
+                    <span>{feature}</span>
+                  </li>
+                ))}
               </ul>
 
               <button
                 type="button"
+                onClick={onStartPlusPlan}
                 className="ui-interactive mt-5 inline-flex h-9 w-full items-center justify-center rounded-full bg-slateBlue px-2 text-xs font-semibold text-white transition hover:bg-deep sm:mt-6 sm:h-10 sm:text-sm"
               >
-                Fillo tani
+                {plusPlan.ctaLabel}
               </button>
             </article>
           </div>

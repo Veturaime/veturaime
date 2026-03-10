@@ -7,6 +7,7 @@ export type Database = {
         Row: {
           id: string;
           full_name: string | null;
+          plan_status: string | null;
           transmission_preference: string | null;
           car_body_preference: string | null;
           car_style_preference: string | null;
@@ -21,6 +22,7 @@ export type Database = {
         Insert: {
           id: string;
           full_name?: string | null;
+          plan_status?: string | null;
           transmission_preference?: string | null;
           car_body_preference?: string | null;
           car_style_preference?: string | null;
@@ -34,6 +36,7 @@ export type Database = {
         };
         Update: {
           full_name?: string | null;
+          plan_status?: string | null;
           transmission_preference?: string | null;
           car_body_preference?: string | null;
           car_style_preference?: string | null;

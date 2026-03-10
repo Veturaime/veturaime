@@ -1,5 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { parsePlanSlug, plans } from "../lib/plans";
 import { registerWithEmail, supabase } from "../lib/supabase";
 
 type RegisterForm = {
@@ -20,12 +21,15 @@ const initialForm: RegisterForm = {
 
 function RegisterPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [form, setForm] = useState<RegisterForm>(initialForm);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const selectedPlanSlug = parsePlanSlug(searchParams.get("plan"));
+  const selectedPlan = selectedPlanSlug ? plans[selectedPlanSlug] : null;
 
   const isValid = useMemo(() => {
     return (
@@ -52,7 +56,8 @@ function RegisterPage() {
       await registerWithEmail({
         fullName: form.fullName,
         email: form.email,
-        password: form.password
+        password: form.password,
+        planStatus: selectedPlan?.status
       });
 
       // Auto-login after registration
@@ -67,8 +72,7 @@ function RegisterPage() {
         return;
       }
 
-      // Redirect to verification
-      navigate("/verify");
+      navigate(selectedPlan?.status === "Free" ? "/my-garage" : "/verify");
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
@@ -108,8 +112,28 @@ function RegisterPage() {
         <h1 className="mt-5 text-center font-display text-4xl tracking-[-0.02em] text-slateBlue">Krijo llogarinë</h1>
         <p className="mt-2 text-center text-sm text-deep/70">Nis menaxhimin e veturës në mënyrë të organizuar.</p>
         <p className="mx-auto mt-3 w-fit rounded-full border border-mint/45 bg-mint/10 px-3 py-1 text-[11px] font-semibold text-deep/80">
-          Regjistrim i shpejtë dhe i mbrojtur
+          {selectedPlan?.status === "Free"
+            ? "Plani Free aktivizohet sapo ta krijosh llogarinë"
+            : selectedPlan?.status === "Plus"
+              ? "Bazë Plus ruhet në profil sapo ta përfundosh regjistrimin"
+              : "Regjistrim i shpejtë dhe i mbrojtur"}
         </p>
+
+        {selectedPlan?.status === "Plus" ? (
+          <div className="mt-5 rounded-2xl border border-slateBlue/15 bg-slateBlue/5 p-4 text-left shadow-[0_12px_30px_rgba(20,39,58,0.06)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slateBlue">Plani i zgjedhur</p>
+                <h2 className="mt-2 font-display text-2xl text-deep">{selectedPlan.name}</h2>
+                <p className="mt-1 text-sm text-deep/70">{selectedPlan.description}</p>
+              </div>
+              <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-[0_12px_24px_rgba(20,39,58,0.08)]">
+                <p className="font-display text-2xl text-slateBlue">{selectedPlan.priceLabel}</p>
+                <p className="text-xs font-semibold text-deep/60">{selectedPlan.durationLabel}</p>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <form onSubmit={onSubmit} className="mt-7 space-y-4">
           <div>

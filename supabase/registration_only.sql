@@ -4,6 +4,7 @@
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
+  plan_status text not null default 'Free',
   transmission_preference text,
   car_body_preference text,
   car_style_preference text,
@@ -15,6 +16,7 @@ create table if not exists public.profiles (
 );
 
 alter table public.profiles
+  add column if not exists plan_status text not null default 'Free',
   add column if not exists transmission_preference text,
   add column if not exists car_body_preference text,
   add column if not exists car_style_preference text,
@@ -44,8 +46,12 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, full_name)
-  values (new.id, new.raw_user_meta_data ->> 'full_name')
+  insert into public.profiles (id, full_name, plan_status)
+  values (
+    new.id,
+    new.raw_user_meta_data ->> 'full_name',
+    coalesce(new.raw_user_meta_data ->> 'plan_status', 'Free')
+  )
   on conflict (id) do nothing;
   return new;
 end;

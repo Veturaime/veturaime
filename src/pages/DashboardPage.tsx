@@ -329,7 +329,7 @@ function DashboardPage() {
 
     try {
       await signOutCurrentUser();
-      navigate("/login", { replace: true });
+      navigate("/", { replace: true });
     } catch (signOutError) {
       setError(signOutError instanceof Error ? signOutError.message : "Sign out failed.");
     } finally {

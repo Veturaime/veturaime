@@ -147,7 +147,7 @@ function VehicleMileagePage() {
   if (error || !data) {
     return (
       <main className="vehicle-dashboard-soft flex min-h-screen items-center justify-center bg-[#F9FAFB] px-4 text-[#1F2937]">
-        <div className="dashboard-panel w-full max-w-xl rounded-3xl p-8 text-center">
+        <div className="dashboard-panel w-full max-w-xl rounded-3xl p-5 text-center sm:p-8">
           <p className="text-lg text-[#b42318]">{error || "Kilometrazhi nuk u gjet."}</p>
           <button
             type="button"
@@ -164,10 +164,10 @@ function VehicleMileagePage() {
   return (
     <main className="vehicle-dashboard-soft min-h-screen bg-[#F9FAFB] px-4 py-8 text-[#1F2937] antialiased md:px-8 md:py-10">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-8 flex items-center justify-between gap-4">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-widest text-[#4d675f]">Kilometrazhi i Veturës</p>
-            <h1 className="mt-2 font-display text-3xl font-bold text-[#111827]">
+            <h1 className="mt-2 font-display text-2xl font-bold text-[#111827] sm:text-3xl">
               {data.car.make} {data.car.model}
             </h1>
             <p className="mt-2 text-[#6B7280]">Këtu shfaqet i gjithë historiku i kilometrave për këtë veturë.</p>
@@ -176,7 +176,7 @@ function VehicleMileagePage() {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="rounded-xl bg-[#2D3A3A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#253030]"
+            className="w-full rounded-xl bg-[#2D3A3A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#253030] sm:w-auto"
           >
             Kthehu mbrapa
           </button>

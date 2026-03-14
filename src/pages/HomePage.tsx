@@ -115,24 +115,24 @@ function HomePage() {
         </div>
       </header>
 
-      <section id="ballina" className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-16 pt-12 text-center md:px-8 md:pt-20 lg:pb-24">
-        <h1 className="mx-auto mt-9 max-w-5xl font-display text-5xl leading-[0.95] tracking-[-0.02em] text-slateBlue md:text-7xl">
+      <section id="ballina" className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-14 pt-10 text-center md:px-8 md:pb-16 md:pt-20 lg:pb-24">
+        <h1 className="mx-auto mt-7 max-w-5xl font-display text-4xl leading-[0.96] tracking-[-0.02em] text-slateBlue sm:text-5xl md:mt-9 md:text-7xl">
           Menaxho veturën pa stres dhe pa kaos.
         </h1>
 
-        <p className="mt-9 text-sm font-semibold uppercase tracking-[0.28em] text-slateBlue md:text-base">
+        <p className="mt-7 text-[11px] font-semibold uppercase tracking-[0.2em] text-slateBlue sm:text-sm sm:tracking-[0.24em] md:mt-9 md:text-base md:tracking-[0.28em]">
           Të gjitha të dhënat në një vend
         </p>
 
-        <p className="mx-auto mt-6 max-w-4xl text-xl leading-relaxed text-deep/70 md:text-[2rem]">
+        <p className="mx-auto mt-5 max-w-4xl text-base leading-relaxed text-deep/70 sm:text-lg md:mt-6 md:text-[2rem]">
           Ruaj servisimet, dokumentet dhe shpenzimet në një panel të vetëm. Hyr shpejt, gjej historikun e
           saktë dhe mos humb më afate të rëndësishme.
         </p>
 
-        <div className="mx-auto mt-10 flex max-w-4xl flex-wrap items-center justify-center gap-4">
+        <div className="mx-auto mt-8 flex w-full max-w-md flex-wrap items-center justify-center gap-3 sm:mt-10 sm:max-w-4xl sm:gap-4">
             <button
               type="button"
-            className="ui-interactive inline-flex h-11 min-w-[170px] items-center justify-center rounded-2xl border border-mint/45 bg-mint/10 px-5 text-base font-semibold text-slateBlue shadow-[0_14px_28px_rgba(72,242,194,0.18)] transition hover:-translate-y-0.5 hover:bg-mint/20 md:h-14 md:min-w-[220px] md:px-7 md:text-xl"
+            className="ui-interactive inline-flex h-11 w-full items-center justify-center rounded-2xl border border-mint/45 bg-mint/10 px-5 text-base font-semibold text-slateBlue shadow-[0_14px_28px_rgba(72,242,194,0.18)] transition hover:-translate-y-0.5 hover:bg-mint/20 sm:h-12 sm:w-auto sm:min-w-[190px] md:h-14 md:min-w-[220px] md:px-7 md:text-xl"
           >
             Permbajtja
             </button>
@@ -147,7 +147,7 @@ function HomePage() {
 
       <section className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-10 md:px-8 md:pb-16">
         <div className="rounded-[1.6rem] border border-deep/10 bg-white/75 p-3 shadow-[0_24px_60px_rgba(20,39,58,0.1)] backdrop-blur-sm sm:p-5">
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-3 sm:gap-6">
+          <div className="grid grid-cols-1 items-start gap-3 sm:gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="min-w-0">
             <img
               src={carShowcaseImage}
@@ -168,12 +168,12 @@ function HomePage() {
         </div>
       </section>
 
-      <section id="si-funksionon" className="relative z-10 bg-slateBlue/5 py-16 text-deep md:py-24">
+      <section id="si-funksionon" className="relative z-10 bg-slateBlue/5 py-14 text-deep md:py-24">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-slateBlue/25 to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-slateBlue/20 to-transparent" />
         <div className="mx-auto w-full max-w-7xl px-4 md:px-8">
           <div className="text-center">
-            <h2 className="font-display text-5xl md:text-6xl">Si funksionon VeturaIme</h2>
+            <h2 className="font-display text-4xl md:text-6xl">Si funksionon VeturaIme</h2>
             <p className="mx-auto mt-3 max-w-2xl text-deep/70">3 hapa të qartë për të menaxhuar veturën pa kaos.</p>
           </div>
 
@@ -191,10 +191,10 @@ function HomePage() {
         </div>
       </section>
 
-      <section id="faq" className="relative z-10 mx-auto w-full max-w-5xl px-4 py-16 md:py-24">
+      <section id="faq" className="relative z-10 mx-auto w-full max-w-5xl px-4 py-14 md:py-24">
         <div className="text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-mint">Pyetje të shpeshta</p>
-          <h2 className="mt-3 font-display text-5xl md:text-6xl">Çfarë duhet të dish</h2>
+          <h2 className="mt-3 font-display text-4xl md:text-6xl">Çfarë duhet të dish</h2>
         </div>
 
         <div className="mt-10 divide-y divide-deep/10 rounded-[1.4rem] border border-deep/10 bg-white shadow-[0_18px_48px_rgba(20,39,58,0.08)]">
@@ -218,14 +218,14 @@ function HomePage() {
         </div>
       </section>
 
-      <section id="pagesa" className="relative z-10 border-t border-deep/10 bg-slateBlue/5 py-16 md:py-20">
+      <section id="pagesa" className="relative z-10 border-t border-deep/10 bg-slateBlue/5 py-14 md:py-20">
         <div className="mx-auto w-full max-w-7xl px-4 md:px-8">
           <div className="text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-mint">Pagesa</p>
-            <h2 className="mt-3 font-display text-5xl text-slateBlue md:text-6xl">Paketat</h2>
+            <h2 className="mt-3 font-display text-4xl text-slateBlue md:text-6xl">Paketat</h2>
           </div>
 
-          <div className="mx-auto mt-10 grid max-w-4xl grid-cols-2 items-stretch gap-3 sm:gap-5">
+          <div className="mx-auto mt-10 grid max-w-4xl grid-cols-1 items-stretch gap-3 sm:gap-5 md:grid-cols-2">
             <article className="ui-interactive flex h-full flex-col rounded-[1rem] border border-deep/10 bg-white p-3 shadow-[0_14px_35px_rgba(20,39,58,0.10)] transition hover:-translate-y-1 hover:shadow-[0_20px_48px_rgba(20,39,58,0.14)] sm:rounded-[1.2rem] sm:p-6">
               <div className="flex items-center gap-2">
                 <span className="inline-flex h-4 w-4 rounded-full bg-slateBlue" />

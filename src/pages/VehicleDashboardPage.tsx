@@ -1624,12 +1624,12 @@ function VehicleDashboardPage() {
             </div>
 
             {/* Quick stats */}
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-3 sm:gap-4">
               {typeof currentMileage === "number" && (
                 <button
                   type="button"
                   onClick={() => navigate(`/vehicle/${car.id}/mileage-view`)}
-                  className="rounded-2xl bg-white px-5 py-4 text-center shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0px_16px_38px_rgba(0,0,0,0.08)]"
+                  className="w-full rounded-2xl bg-white px-4 py-3 text-center shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0px_16px_38px_rgba(0,0,0,0.08)] sm:w-auto sm:px-5 sm:py-4"
                 >
                   <p className="text-2xl font-bold text-[#111827]">{currentMileage.toLocaleString("sq-AL")}</p>
                   <p className="text-xs text-[#6B7280]">km</p>
@@ -1638,7 +1638,7 @@ function VehicleDashboardPage() {
               <button
                 type="button"
                 onClick={() => navigate(`/vehicle/${car.id}/documents-view`)}
-                className="rounded-2xl bg-white px-5 py-4 text-center shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0px_16px_38px_rgba(0,0,0,0.08)]"
+                className="w-full rounded-2xl bg-white px-4 py-3 text-center shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:-translate-y-0.5 hover:shadow-[0px_16px_38px_rgba(0,0,0,0.08)] sm:w-auto sm:px-5 sm:py-4"
               >
                 <p className="text-2xl font-bold text-[#2D3A3A]">{documents.length}</p>
                 <p className="text-xs text-[#6B7280]">dokumente</p>

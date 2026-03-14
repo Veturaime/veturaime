@@ -133,7 +133,7 @@ function MyGaragePage() {
       </div>
 
       <header className="relative z-10 border-b border-[#e6eaee] bg-[#F9FAFB]/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 md:px-8">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:flex-nowrap md:px-8">
           <Link to="/" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#d8ebe8] to-[#eaf3f2] shadow-[0px_8px_24px_rgba(0,0,0,0.06)]">
               <span className="font-display text-lg font-bold text-[#2D3A3A]">V</span>
@@ -141,10 +141,10 @@ function MyGaragePage() {
             <span className="font-display text-xl font-bold text-[#111827]">VeturaIme</span>
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex w-full items-center justify-end gap-2 sm:gap-3 md:w-auto">
             <Link
               to="/car-setup"
-              className="flex h-10 items-center gap-2 rounded-xl bg-[#2D3A3A] px-4 text-sm font-semibold text-white shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:bg-[#253030]"
+              className="flex h-10 items-center gap-2 rounded-xl bg-[#2D3A3A] px-3 text-sm font-semibold text-white shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:bg-[#253030] sm:px-4"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <circle cx="12" cy="12" r="8.5" strokeWidth={1.2} />
@@ -155,7 +155,7 @@ function MyGaragePage() {
             <button
               type="button"
               onClick={onSignOut}
-              className="flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-[#374151] shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:bg-[#f3f4f6]"
+              className="flex h-10 items-center gap-2 rounded-xl bg-white px-3 text-sm font-semibold text-[#374151] shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:bg-[#f3f4f6] sm:px-4"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path

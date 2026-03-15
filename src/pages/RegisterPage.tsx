@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { parsePlanSlug, plans } from "../lib/plans";
 import { registerWithEmail, supabase } from "../lib/supabase";
+import brandLogo from "../../assets/foto.png";
 
 type RegisterForm = {
   fullName: string;
@@ -105,8 +106,8 @@ function RegisterPage() {
           ← Kthehu mbrapa
         </button>
 
-        <div className="mx-auto mt-1 grid h-14 w-14 place-items-center rounded-2xl bg-slateBlue text-mint shadow-[0_10px_24px_rgba(31,100,136,0.28)]">
-          <span className="text-2xl">🛡</span>
+        <div className="mx-auto mt-1 h-14 w-14 overflow-hidden rounded-2xl ring-1 ring-mint/35 shadow-[0_10px_24px_rgba(31,100,136,0.28)]">
+          <img src={brandLogo} alt="VeturaIme logo" className="h-full w-full bg-white object-contain p-0.5" />
         </div>
 
         <h1 className="mt-5 text-center font-display text-4xl tracking-[-0.02em] text-slateBlue">Krijo llogarinë</h1>

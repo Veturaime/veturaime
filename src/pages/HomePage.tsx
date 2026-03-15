@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import carShowcaseImage from "../../assets/blue-sports-car-.jpg";
-import brandLogo from "../../assets/logo.jpg";
+import brandLogo from "../../assets/foto.png";
 import { plans } from "../lib/plans";
 
 const quickCards = [
@@ -79,7 +79,7 @@ function HomePage() {
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 md:h-16 md:flex-nowrap md:gap-0 md:px-8 md:py-0">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 overflow-hidden rounded-xl ring-1 ring-mint/35">
-              <img src={brandLogo} alt="VeturaIme logo" className="h-full w-full object-cover" />
+              <img src={brandLogo} alt="VeturaIme logo" className="h-full w-full bg-white object-contain p-0.5" />
             </div>
             <div>
               <p className="font-display text-lg leading-none">VeturaIme</p>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import brandLogo from "../../assets/foto.png";
 import type { CarRow } from "../lib/database.types";
 import { getUserCars, signOutCurrentUser, supabase, updateCar } from "../lib/supabase";
 import {
@@ -135,8 +136,8 @@ function MyGaragePage() {
       <header className="relative z-10 border-b border-[#e6eaee] bg-[#F9FAFB]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:flex-nowrap md:px-8">
           <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#d8ebe8] to-[#eaf3f2] shadow-[0px_8px_24px_rgba(0,0,0,0.06)]">
-              <span className="font-display text-lg font-bold text-[#2D3A3A]">V</span>
+            <div className="h-10 w-10 overflow-hidden rounded-xl ring-1 ring-[#d2e4e1] shadow-[0px_8px_24px_rgba(0,0,0,0.06)]">
+              <img src={brandLogo} alt="VeturaIme logo" className="h-full w-full bg-white object-contain p-0.5" />
             </div>
             <span className="font-display text-xl font-bold text-[#111827]">VeturaIme</span>
           </Link>

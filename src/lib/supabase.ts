@@ -263,15 +263,10 @@ export async function quickStart(flow: "dashboard" | "register", inputValue: str
   const fallbackTarget = `/dashboard?${query.toString()}`;
 
   try {
-    const { data, error } = await supabase.auth.signInAnonymously();
+    const { error } = await supabase.auth.signInAnonymously();
     if (error) {
       window.location.href = fallbackTarget;
       return;
-    }
-
-    const sessionToken = data?.session?.access_token;
-    if (sessionToken) {
-      sessionStorage.setItem("veturaime_access_token", sessionToken);
     }
 
     window.location.href = fallbackTarget;

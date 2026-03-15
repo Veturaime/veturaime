@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { hasCompletedOnboarding, hasCompletedCarSelection, isEmailVerified, supabase } from "../lib/supabase";
+import brandLogo from "../../assets/foto.png";
 
 type LoginForm = {
   email: string;
@@ -35,7 +36,7 @@ function LoginPage() {
 
     setLoading(true);
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email: form.email.trim(),
         password: form.password
       });
@@ -47,10 +48,6 @@ function LoginPage() {
 
       if (!remember) {
         await supabase.auth.signOut({ scope: "local" });
-      }
-
-      if (data.session?.access_token) {
-        sessionStorage.setItem("veturaime_access_token", data.session.access_token);
       }
 
       // Determine where to redirect based on user state
@@ -101,14 +98,8 @@ function LoginPage() {
           ← Kthehu mbrapa
         </button>
 
-        <div className="mx-auto mt-1 grid h-14 w-14 place-items-center rounded-2xl bg-slateBlue text-mint shadow-[0_10px_24px_rgba(31,100,136,0.28)]">
-          <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-            />
-          </svg>
+        <div className="mx-auto mt-1 h-14 w-14 overflow-hidden rounded-2xl ring-1 ring-mint/35 shadow-[0_10px_24px_rgba(31,100,136,0.28)]">
+          <img src={brandLogo} alt="VeturaIme logo" className="h-full w-full bg-white object-contain p-0.5" />
         </div>
 
         <h1 className="mt-5 text-center font-display text-4xl tracking-[-0.02em] text-slateBlue">Mirë se u ktheve</h1>

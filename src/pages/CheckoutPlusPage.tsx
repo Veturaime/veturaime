@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import brandLogo from "../../assets/logo.jpg";
+import brandLogo from "../../assets/foto.png";
 import { plans } from "../lib/plans";
 
 function CheckoutPlusPage() {
@@ -22,7 +22,7 @@ function CheckoutPlusPage() {
 
           <Link to="/" className="flex items-center gap-3">
             <div className="h-10 w-10 overflow-hidden rounded-xl ring-1 ring-mint/35">
-              <img src={brandLogo} alt="VeturaIme logo" className="h-full w-full object-cover" />
+              <img src={brandLogo} alt="VeturaIme logo" className="h-full w-full bg-white object-contain p-0.5" />
             </div>
             <div>
               <p className="font-display text-lg leading-none text-slateBlue">VeturaIme</p>

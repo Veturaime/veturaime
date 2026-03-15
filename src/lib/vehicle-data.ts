@@ -1,5 +1,5 @@
 import type { VehicleData } from "./database.types";
-import { supabase } from "./supabase";
+import { SUPABASE_ANON_KEY, supabase } from "./supabase";
 
 const GENERATED_PLACEHOLDER_PREFIX = "data:image/svg+xml,";
 const vehicleImageRequestCache = new Map<string, Promise<string>>();
@@ -381,11 +381,20 @@ async function fetchCarsXeImage(
     };
 
     const invokeVehicleImage = async () => {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      const authToken = session?.access_token ?? SUPABASE_ANON_KEY;
+
       const { data, error } = await supabase.functions.invoke<{
         imageUrl?: string | null;
         provider?: string | null;
         error?: string;
       }>("vehicle-image", {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${authToken}`
+        },
         body: {
           make,
           model,

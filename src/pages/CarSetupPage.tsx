@@ -121,13 +121,11 @@ function CarSetupPage() {
   const goToDetails = () => {
     if (!canProceedToDetails) return;
     setStep("details");
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const goToPreview = () => {
     if (!canProceedToPreview) return;
     setStep("preview");
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const goBack = () => {

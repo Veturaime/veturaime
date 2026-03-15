@@ -62,6 +62,10 @@ function HomePage() {
   const freePlan = plans.free;
   const plusPlan = plans.plus;
 
+  const scrollToSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const onStartFreePlan = () => {
     navigate("/register?plan=free", { replace: false });
   };
@@ -87,15 +91,15 @@ function HomePage() {
           </div>
 
           <nav className="order-3 flex w-full items-center justify-center gap-7 border-t border-deep/10 pt-2 text-sm font-semibold tracking-[0.01em] text-deep/80 md:order-none md:w-auto md:border-t-0 md:pt-0">
-            <a href="#ballina" className="ui-interactive transition hover:text-slateBlue">
+            <button type="button" onClick={() => scrollToSection("ballina")} className="ui-interactive transition hover:text-slateBlue">
               Ballina
-            </a>
-            <a href="#si-funksionon" className="ui-interactive transition hover:text-slateBlue">
+            </button>
+            <button type="button" onClick={() => scrollToSection("si-funksionon")} className="ui-interactive transition hover:text-slateBlue">
               Si funksionon
-            </a>
-            <a href="#pagesa" className="ui-interactive transition hover:text-slateBlue">
+            </button>
+            <button type="button" onClick={() => scrollToSection("pagesa")} className="ui-interactive transition hover:text-slateBlue">
               Pagesa
-            </a>
+            </button>
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
@@ -132,6 +136,7 @@ function HomePage() {
         <div className="mx-auto mt-8 flex w-full max-w-md flex-wrap items-center justify-center gap-3 sm:mt-10 sm:max-w-4xl sm:gap-4">
             <button
               type="button"
+              onClick={() => scrollToSection("si-funksionon")}
             className="ui-interactive inline-flex h-11 w-full items-center justify-center rounded-2xl border border-mint/45 bg-mint/10 px-5 text-base font-semibold text-slateBlue shadow-[0_14px_28px_rgba(72,242,194,0.18)] transition hover:-translate-y-0.5 hover:bg-mint/20 sm:h-12 sm:w-auto sm:min-w-[190px] md:h-14 md:min-w-[220px] md:px-7 md:text-xl"
           >
             Permbajtja
@@ -302,9 +307,9 @@ function HomePage() {
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slateBlue">Linqe të shpejta</p>
                 <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
-                  <a href="#ballina" className="ui-interactive rounded-full border border-slateBlue/20 bg-slateBlue/5 px-3 py-1.5 text-sm text-slateBlue transition hover:bg-slateBlue/10">Ballina</a>
-                  <a href="#si-funksionon" className="ui-interactive rounded-full border border-mint/45 bg-mint/10 px-3 py-1.5 text-sm text-deep transition hover:bg-mint/20">Si funksionon</a>
-                  <a href="#pagesa" className="ui-interactive rounded-full border border-slateBlue/20 bg-slateBlue/5 px-3 py-1.5 text-sm text-slateBlue transition hover:bg-slateBlue/10">Pagesa</a>
+                  <button type="button" onClick={() => scrollToSection("ballina")} className="ui-interactive rounded-full border border-slateBlue/20 bg-slateBlue/5 px-3 py-1.5 text-sm text-slateBlue transition hover:bg-slateBlue/10">Ballina</button>
+                  <button type="button" onClick={() => scrollToSection("si-funksionon")} className="ui-interactive rounded-full border border-mint/45 bg-mint/10 px-3 py-1.5 text-sm text-deep transition hover:bg-mint/20">Si funksionon</button>
+                  <button type="button" onClick={() => scrollToSection("pagesa")} className="ui-interactive rounded-full border border-slateBlue/20 bg-slateBlue/5 px-3 py-1.5 text-sm text-slateBlue transition hover:bg-slateBlue/10">Pagesa</button>
                 </div>
               </div>
 

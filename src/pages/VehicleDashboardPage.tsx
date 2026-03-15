@@ -400,7 +400,7 @@ function VehicleDashboardPage() {
     }
 
     setActiveTab(nextTab);
-    navigate(getVehicleTabPath(nextTab));
+    navigate(getVehicleTabPath(nextTab), { replace: true });
   };
 
   useEffect(() => {

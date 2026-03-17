@@ -364,29 +364,7 @@ async function fetchCarsXeImage(
   }
 
   try {
-    const ensureFreshSession = async () => {
-      const {
-        data: { session }
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        return false;
-      }
-
-      if (session.expires_at && session.expires_at * 1000 <= Date.now() + 5000) {
-        const { data: refreshedData, error } = await supabase.auth.refreshSession();
-        return !error && Boolean(refreshedData.session?.access_token);
-      }
-
-      return true;
-    };
-
     const invokeVehicleImage = async () => {
-      const {
-        data: { session }
-      } = await supabase.auth.getSession();
-      const authToken = session?.access_token ?? SUPABASE_ANON_KEY;
-
       const { data, error } = await supabase.functions.invoke<{
         imageUrl?: string | null;
         provider?: string | null;
@@ -394,7 +372,7 @@ async function fetchCarsXeImage(
       }>("vehicle-image", {
         headers: {
           apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${authToken}`
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`
         },
         body: {
           make,
@@ -410,28 +388,14 @@ async function fetchCarsXeImage(
       };
     };
 
-    const hasValidSession = await ensureFreshSession();
-
-    if (!hasValidSession) {
-      return fetchCarsXeImageDirect(make, model, year, color);
-    }
-
     let { data, error } = await invokeVehicleImage();
 
     const errorStatus =
       typeof (error as { context?: { status?: number } } | null)?.context?.status === "number"
         ? (error as { context?: { status?: number } }).context?.status ?? null
         : null;
-    const errorMessage = error?.message.toLowerCase() ?? "";
-    const isUnauthorized = errorStatus === 401 || errorMessage.includes("unauthorized") || errorMessage.includes("jwt");
 
-    if (isUnauthorized) {
-      const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
-
-      if (refreshError || !refreshedData.session?.access_token) {
-        return fetchCarsXeImageDirect(make, model, year, color);
-      }
-
+    if (errorStatus === 401) {
       const retryResult = await invokeVehicleImage();
       data = retryResult.data;
       error = retryResult.error;

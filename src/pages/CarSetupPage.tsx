@@ -9,12 +9,14 @@ import {
   COLORS,
   fetchVehicleImage,
   FUEL_TYPES,
+  getRenderableVehicleImageUrl,
   getYearOptions,
   TRANSMISSION_TYPES,
   USAGE_TYPES,
   validateLicensePlate,
   validateVIN
 } from "../lib/vehicle-data";
+import fallbackVehicleImage from "../../assets/Mercedes-E-Class-620x350-1.png";
 
 type SetupStep = "identify" | "details" | "preview";
 
@@ -114,6 +116,7 @@ function CarSetupPage() {
 
   const canProceedToDetails = make && model;
   const canProceedToPreview = make && model;
+  const previewImageUrl = getRenderableVehicleImageUrl(imageUrl) ?? imageUrl ?? fallbackVehicleImage;
 
   const licensePlateValid = !licensePlate || validateLicensePlate(licensePlate);
   const vinValid = !vin || validateVIN(vin);
@@ -647,26 +650,17 @@ function CarSetupPage() {
                   <div className="flex h-full items-center justify-center">
                     <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#2D3A3A] border-t-transparent" />
                   </div>
-                ) : imageUrl ? (
+                ) : (
                   <img
-                    src={imageUrl}
+                    src={previewImageUrl}
                     alt={`${make} ${model}`}
                     className="h-full w-full object-contain p-6 drop-shadow-[0px_16px_24px_rgba(0,0,0,0.14)]"
                     onError={(e) => {
-                      e.currentTarget.style.display = "none";
+                      if (e.currentTarget.src !== fallbackVehicleImage) {
+                        e.currentTarget.src = fallbackVehicleImage;
+                      }
                     }}
                   />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-[#9ca3af]">
-                    <svg className="h-20 w-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1}
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
-                  </div>
                 )}
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/80 to-transparent p-4">
                   <h2 className="font-display text-2xl font-bold text-[#1F2937]">

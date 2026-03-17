@@ -320,7 +320,7 @@ export default defineConfig(function (_a) {
     var env = loadEnv(mode, process.cwd(), "");
     var reactPlugin = react();
     var plugins = Array.isArray(reactPlugin) ? __spreadArray([], reactPlugin, true) : [reactPlugin];
-    if (env.CARSXE_API_KEY) {
+    if (env.CARSXE_API_KEY && env.VITE_ENABLE_CARSXE_DEV_PROXY === "true") {
         plugins.push(createVehicleImageProxy(env.CARSXE_API_KEY));
     }
     return {

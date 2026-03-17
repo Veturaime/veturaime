@@ -1,6 +1,13 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { hasCompletedOnboarding, hasCompletedCarSelection, isEmailVerified, supabase } from "../lib/supabase";
+import {
+  getRememberPreference,
+  hasCompletedOnboarding,
+  hasCompletedCarSelection,
+  isEmailVerified,
+  setRememberPreference,
+  supabase
+} from "../lib/supabase";
 import brandLogo from "../../assets/foto.png";
 
 type LoginForm = {
@@ -17,7 +24,7 @@ function LoginPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState<LoginForm>(initialForm);
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(true);
+  const [remember, setRemember] = useState(getRememberPreference);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -36,6 +43,8 @@ function LoginPage() {
 
     setLoading(true);
     try {
+      setRememberPreference(remember);
+
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: form.email.trim(),
         password: form.password
@@ -44,10 +53,6 @@ function LoginPage() {
       if (signInError) {
         setError(signInError.message);
         return;
-      }
-
-      if (!remember) {
-        await supabase.auth.signOut({ scope: "local" });
       }
 
       // Determine where to redirect based on user state
@@ -111,7 +116,8 @@ function LoginPage() {
               type="email"
               value={form.email}
               onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-              className="h-12 w-full rounded-xl border border-deep/15 bg-white px-3 outline-none ring-mint/40 transition focus:border-slateBlue/30 focus:ring focus:ring-mint/35"
+              autoComplete="email"
+              className="h-12 w-full rounded-xl border border-deep/15 bg-white px-3 text-base outline-none ring-mint/40 transition focus:border-slateBlue/30 focus:ring focus:ring-mint/35"
               placeholder="emri@shembull.com"
               required
             />
@@ -124,7 +130,8 @@ function LoginPage() {
                 type={showPassword ? "text" : "password"}
                 value={form.password}
                 onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
-                className="h-12 w-full rounded-xl border border-deep/15 bg-white px-3 pr-12 outline-none ring-mint/40 transition focus:border-slateBlue/30 focus:ring focus:ring-mint/35"
+                autoComplete="current-password"
+                className="h-12 w-full rounded-xl border border-deep/15 bg-white px-3 pr-12 text-base outline-none ring-mint/40 transition focus:border-slateBlue/30 focus:ring focus:ring-mint/35"
                 placeholder="********"
                 required
               />
@@ -146,11 +153,14 @@ function LoginPage() {
                 onChange={(event) => setRemember(event.target.checked)}
                 className="h-4 w-4 rounded border-deep/30 text-slateBlue focus:ring-slateBlue"
               />
-              Më maj në mend
+              Më mbaj në mend
             </label>
-            <button type="button" className="ui-interactive text-sm font-semibold text-slateBlue hover:underline">
+            <Link
+              to={`/reset-password${form.email ? `?email=${encodeURIComponent(form.email.trim())}` : ""}`}
+              className="ui-interactive text-sm font-semibold text-slateBlue hover:underline"
+            >
               E harrove fjalëkalimin?
-            </button>
+            </Link>
           </div>
 
           {error ? <p className="text-sm font-semibold text-red-600">{error}</p> : null}

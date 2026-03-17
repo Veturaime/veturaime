@@ -13,6 +13,8 @@ import type { PlanStatus } from "./plans";
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const AUTH_STORAGE_KEY = "veturaime-auth-token";
+export const REMEMBER_ME_STORAGE_KEY = "veturaime-remember-me";
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   throw new Error("Missing Supabase environment variables. Check .env configuration.");
@@ -20,13 +22,133 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 type AppSupabaseClient = SupabaseClient<Database>;
 
+const inMemoryAuthStore: Record<string, string> = {};
+
+function safeRead(storage: Storage, key: string) {
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeWrite(storage: Storage, key: string, value: string) {
+  try {
+    storage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function safeRemove(storage: Storage, key: string) {
+  try {
+    storage.removeItem(key);
+  } catch {
+    // Ignore storage access errors in restricted browser contexts.
+  }
+}
+
+function isRememberPreferred() {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  const localPreference = safeRead(window.localStorage, REMEMBER_ME_STORAGE_KEY);
+  if (localPreference !== null) {
+    return localPreference !== "false";
+  }
+
+  const sessionPreference = safeRead(window.sessionStorage, REMEMBER_ME_STORAGE_KEY);
+  if (sessionPreference !== null) {
+    return sessionPreference !== "false";
+  }
+
+  return inMemoryAuthStore[REMEMBER_ME_STORAGE_KEY] !== "false";
+}
+
+export function getRememberPreference() {
+  return isRememberPreferred();
+}
+
+export function setRememberPreference(remember: boolean) {
+  if (typeof window === "undefined") {
+    inMemoryAuthStore[REMEMBER_ME_STORAGE_KEY] = remember ? "true" : "false";
+    return;
+  }
+
+  const preferenceValue = remember ? "true" : "false";
+
+  const wroteLocal = safeWrite(window.localStorage, REMEMBER_ME_STORAGE_KEY, preferenceValue);
+  if (!wroteLocal) {
+    safeWrite(window.sessionStorage, REMEMBER_ME_STORAGE_KEY, preferenceValue);
+  }
+
+  inMemoryAuthStore[REMEMBER_ME_STORAGE_KEY] = preferenceValue;
+}
+
+const authStorage = {
+  getItem(key: string) {
+    if (typeof window === "undefined") {
+      return inMemoryAuthStore[key] ?? null;
+    }
+
+    return safeRead(window.localStorage, key) ?? safeRead(window.sessionStorage, key) ?? inMemoryAuthStore[key] ?? null;
+  },
+  setItem(key: string, value: string) {
+    if (typeof window === "undefined") {
+      inMemoryAuthStore[key] = value;
+      return;
+    }
+
+    if (isRememberPreferred()) {
+      const wroteLocal = safeWrite(window.localStorage, key, value);
+
+      if (!wroteLocal) {
+        safeWrite(window.sessionStorage, key, value);
+      }
+
+      safeRemove(window.sessionStorage, key);
+      inMemoryAuthStore[key] = value;
+      return;
+    }
+
+    const wroteSession = safeWrite(window.sessionStorage, key, value);
+
+    if (!wroteSession) {
+      safeWrite(window.localStorage, key, value);
+    }
+
+    safeRemove(window.localStorage, key);
+    inMemoryAuthStore[key] = value;
+  },
+  removeItem(key: string) {
+    if (typeof window === "undefined") {
+      delete inMemoryAuthStore[key];
+      return;
+    }
+
+    safeRemove(window.localStorage, key);
+    safeRemove(window.sessionStorage, key);
+    delete inMemoryAuthStore[key];
+  }
+};
+
 declare global {
   var __veturaimeSupabaseClient: AppSupabaseClient | undefined;
 }
 
 export const supabase: AppSupabaseClient =
   globalThis.__veturaimeSupabaseClient ??
-  createSupabaseClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY);
+  createSupabaseClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      storage: authStorage,
+      storageKey: AUTH_STORAGE_KEY,
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  });
 
 if (import.meta.env.DEV) {
   globalThis.__veturaimeSupabaseClient = supabase;

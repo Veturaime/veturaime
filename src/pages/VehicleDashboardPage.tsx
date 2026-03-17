@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { jsPDF } from "jspdf";
 import type { DocumentRow, ExpenseRow, ServiceRecordRow } from "../lib/database.types";
@@ -26,6 +26,7 @@ import {
   isGeneratedVehiclePlaceholder,
   TRANSMISSION_TYPES
 } from "../lib/vehicle-data";
+import dashboardCarImage from "../../assets/hero-car.jpg";
 import {
   ensureNonNegativeNumber,
   ensurePositiveAmount,
@@ -369,6 +370,9 @@ function VehicleDashboardPage() {
   const [showReportMileage, setShowReportMileage] = useState(false);
   const [showOverviewNotificationsPanel, setShowOverviewNotificationsPanel] = useState(false);
   const [dismissedOverviewNotifications, setDismissedOverviewNotifications] = useState<Record<string, number>>({});
+  const tabsNavRef = useRef<HTMLElement | null>(null);
+  const [canScrollTabsLeft, setCanScrollTabsLeft] = useState(false);
+  const [canScrollTabsRight, setCanScrollTabsRight] = useState(false);
 
   useEffect(() => {
     const nextTab = VEHICLE_DASHBOARD_TABS.some((tab) => tab.key === section) ? (section as Tab) : "overview";
@@ -403,6 +407,71 @@ function VehicleDashboardPage() {
     navigate(getVehicleTabPath(nextTab), { replace: true });
   };
 
+  const updateTabsScrollState = () => {
+    const nav = tabsNavRef.current;
+
+    if (!nav) {
+      setCanScrollTabsLeft(false);
+      setCanScrollTabsRight(false);
+      return;
+    }
+
+    const maxScrollLeft = Math.max(0, nav.scrollWidth - nav.clientWidth);
+    setCanScrollTabsLeft(nav.scrollLeft > 4);
+    setCanScrollTabsRight(maxScrollLeft - nav.scrollLeft > 4);
+  };
+
+  const scrollTabsBy = (direction: "left" | "right") => {
+    const nav = tabsNavRef.current;
+
+    if (!nav) {
+      return;
+    }
+
+    const offset = Math.max(nav.clientWidth * 0.75, 120);
+    nav.scrollBy({
+      left: direction === "right" ? offset : -offset,
+      behavior: "smooth"
+    });
+  };
+
+  useEffect(() => {
+    const nav = tabsNavRef.current;
+
+    if (!nav) {
+      return;
+    }
+
+    const handleTabsScroll = () => {
+      updateTabsScrollState();
+    };
+
+    const handleTabsResize = () => {
+      updateTabsScrollState();
+    };
+
+    updateTabsScrollState();
+    nav.addEventListener("scroll", handleTabsScroll, { passive: true });
+    window.addEventListener("resize", handleTabsResize);
+
+    return () => {
+      nav.removeEventListener("scroll", handleTabsScroll);
+      window.removeEventListener("resize", handleTabsResize);
+    };
+  }, [activeTab]);
+
+  useEffect(() => {
+    const nav = tabsNavRef.current;
+
+    if (!nav) {
+      return;
+    }
+
+    const activeButton = nav.querySelector<HTMLButtonElement>(`button[data-tab="${activeTab}"]`);
+    activeButton?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+    updateTabsScrollState();
+  }, [activeTab]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -431,24 +500,27 @@ function VehicleDashboardPage() {
 
         // Fetch car image
         const car = dashboardData.car;
-        if (car.image_url && !isGeneratedVehiclePlaceholder(car.image_url)) {
-          setCarImage(car.image_url);
-        } else {
-          const url = await fetchVehicleImage(
-            car.make,
-            car.model,
-            car.year ?? undefined,
-            car.body_type ?? undefined,
-            car.color ?? undefined
-          );
+        let resolvedImage: string | null =
+          car.image_url && !isGeneratedVehiclePlaceholder(car.image_url) ? car.image_url : null;
 
-          if (url && !isGeneratedVehiclePlaceholder(url) && url !== car.image_url) {
-            void updateCar(car.id, { image_url: url }).catch(() => undefined);
-          }
+        const fetchedImage = await fetchVehicleImage(
+          car.make,
+          car.model,
+          car.year ?? undefined,
+          car.body_type ?? undefined,
+          car.color ?? undefined
+        );
 
-          if (isMounted) {
-            setCarImage(url);
+        if (fetchedImage && !isGeneratedVehiclePlaceholder(fetchedImage)) {
+          resolvedImage = fetchedImage;
+
+          if (fetchedImage !== car.image_url) {
+            void updateCar(car.id, { image_url: fetchedImage }).catch(() => undefined);
           }
+        }
+
+        if (isMounted) {
+          setCarImage(resolvedImage);
         }
       } catch (err) {
         if (isMounted) {
@@ -1530,6 +1602,7 @@ function VehicleDashboardPage() {
   const fuelTypeInfo = FUEL_TYPES.find((f) => f.value === car.fuel_type);
   const transmissionInfo = TRANSMISSION_TYPES.find((t) => t.value === car.transmission);
   const renderableCarImage = getRenderableVehicleImageUrl(carImage);
+  const dashboardHeroImage = renderableCarImage ?? carImage ?? dashboardCarImage;
 
   return (
     <main className="vehicle-dashboard-soft relative min-h-screen overflow-hidden bg-[#F9FAFB] font-body text-[#1F2937] antialiased">
@@ -1542,12 +1615,10 @@ function VehicleDashboardPage() {
       {/* Header with car hero */}
       <header className="relative overflow-hidden border-b border-[#e6eaee] bg-[#F9FAFB]/90 backdrop-blur-xl">
         {/* Background image */}
-        {carImage && (
-          <div className="absolute inset-0 opacity-[0.12]">
-            <img src={renderableCarImage ?? carImage} alt="" className="h-full w-full object-cover blur-3xl" />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(249,250,251,0.85),rgba(249,250,251,0.98))]" />
-          </div>
-        )}
+        <div className="absolute inset-0 opacity-[0.12]">
+          <img src={dashboardHeroImage} alt="" className="h-full w-full object-cover blur-3xl" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(249,250,251,0.85),rgba(249,250,251,0.98))]" />
+        </div>
 
         <div className="relative z-10 mx-auto max-w-7xl px-4 py-6 md:px-8">
           {/* Breadcrumb */}
@@ -1565,20 +1636,12 @@ function VehicleDashboardPage() {
           <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div className="flex items-center gap-5">
               {/* Car thumbnail */}
-              <div className="hidden h-24 w-36 shrink-0 overflow-hidden rounded-2xl bg-[linear-gradient(145deg,#ffffff,#f3f7fb)] shadow-[0px_10px_30px_rgba(0,0,0,0.05)] sm:block">
-                {carImage ? (
-                  <img
-                    src={renderableCarImage ?? carImage}
-                    alt={`${car.make} ${car.model}`}
-                    className="h-full w-full object-contain p-3 drop-shadow-[0px_14px_22px_rgba(0,0,0,0.14)]"
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-[#9ca3af]">
-                    <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
-                    </svg>
-                  </div>
-                )}
+              <div className="h-20 w-28 shrink-0 overflow-hidden rounded-2xl bg-[linear-gradient(145deg,#ffffff,#f3f7fb)] shadow-[0px_10px_30px_rgba(0,0,0,0.05)] sm:h-24 sm:w-36">
+                <img
+                  src={dashboardHeroImage}
+                  alt={`${car.make} ${car.model}`}
+                  className="h-full w-full object-contain p-3 drop-shadow-[0px_14px_22px_rgba(0,0,0,0.14)]"
+                />
               </div>
 
               <div>
@@ -1647,25 +1710,50 @@ function VehicleDashboardPage() {
           </div>
 
           {/* Tabs */}
-          <nav className="mt-8 flex gap-1 overflow-x-auto">
-            {VEHICLE_DASHBOARD_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => {
-                  handleTabChange(tab.key);
-                }}
-                disabled={saving}
-                className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-                  activeTab === tab.key
-                    ? "bg-[#e7f1ee] text-[#2D3A3A] shadow-[0px_10px_30px_rgba(0,0,0,0.05)]"
-                    : "text-[#6B7280] hover:bg-white hover:text-[#1F2937]"
-                } ${saving ? "cursor-not-allowed opacity-60" : ""}`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+          <div className="mt-8 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => scrollTabsBy("left")}
+              disabled={saving || !canScrollTabsLeft}
+              aria-label="Leviz tab-et majtas"
+              title="Leviz majtas"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-[#d6dee6] bg-white text-[#4b5563] shadow-[0px_8px_20px_rgba(0,0,0,0.06)] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-40 md:hidden"
+            >
+              <span aria-hidden="true">{"<"}</span>
+            </button>
+
+            <nav ref={tabsNavRef} className="flex flex-1 gap-1 overflow-x-auto">
+              {VEHICLE_DASHBOARD_TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  data-tab={tab.key}
+                  onClick={() => {
+                    handleTabChange(tab.key);
+                  }}
+                  disabled={saving}
+                  className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                    activeTab === tab.key
+                      ? "bg-[#e7f1ee] text-[#2D3A3A] shadow-[0px_10px_30px_rgba(0,0,0,0.05)]"
+                      : "text-[#6B7280] hover:bg-white hover:text-[#1F2937]"
+                  } ${saving ? "cursor-not-allowed opacity-60" : ""}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+
+            <button
+              type="button"
+              onClick={() => scrollTabsBy("right")}
+              disabled={saving || !canScrollTabsRight}
+              aria-label="Leviz tab-et djathtas"
+              title="Leviz djathtas"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-[#d6dee6] bg-white text-[#4b5563] shadow-[0px_8px_20px_rgba(0,0,0,0.06)] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-40 md:hidden"
+            >
+              <span aria-hidden="true">{">"}</span>
+            </button>
+          </div>
         </div>
       </header>
 

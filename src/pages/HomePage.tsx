@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import carShowcaseImage from "../../assets/blue-sports-car-.jpg";
+import carShowcaseImage from "../../assets/Mercedes-E-Class-620x350-1.png";
 import brandLogo from "../../assets/foto.png";
 import { plans } from "../lib/plans";
 

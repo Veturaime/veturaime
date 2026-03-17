@@ -306,7 +306,12 @@ Deno.serve(async (request: Request) => {
   const apiKey = Deno.env.get("CARSXE_API_KEY")?.trim();
 
   if (!apiKey) {
-    return json({ error: "CARSXE_API_KEY secret is missing." }, { status: 500 });
+    return json({
+      imageUrl: null,
+      provider: null,
+      cached: false,
+      error: "CARSXE_API_KEY secret is missing."
+    });
   }
 
   let body: VehicleImageRequest;

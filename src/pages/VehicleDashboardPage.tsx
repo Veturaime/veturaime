@@ -1616,7 +1616,16 @@ function VehicleDashboardPage() {
       <header className="relative overflow-hidden border-b border-[#e6eaee] bg-[#F9FAFB]/90 backdrop-blur-xl">
         {/* Background image */}
         <div className="absolute inset-0 opacity-[0.12]">
-          <img src={dashboardHeroImage} alt="" className="h-full w-full object-cover blur-3xl" />
+          <img
+            src={dashboardHeroImage}
+            alt=""
+            className="h-full w-full object-cover blur-3xl"
+            onError={(e) => {
+              if (e.currentTarget.src !== dashboardCarImage) {
+                e.currentTarget.src = dashboardCarImage;
+              }
+            }}
+          />
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(249,250,251,0.85),rgba(249,250,251,0.98))]" />
         </div>
 
@@ -1641,6 +1650,11 @@ function VehicleDashboardPage() {
                   src={dashboardHeroImage}
                   alt={`${car.make} ${car.model}`}
                   className="h-full w-full object-contain p-3 drop-shadow-[0px_14px_22px_rgba(0,0,0,0.14)]"
+                  onError={(e) => {
+                    if (e.currentTarget.src !== dashboardCarImage) {
+                      e.currentTarget.src = dashboardCarImage;
+                    }
+                  }}
                 />
               </div>
 

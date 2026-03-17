@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import brandLogo from "../../assets/foto.png";
+import fallbackVehicleImage from "../../assets/Mercedes-E-Class-620x350-1.png";
 import type { CarRow } from "../lib/database.types";
 import { getUserCars, signOutCurrentUser, supabase, updateCar } from "../lib/supabase";
 import {
@@ -221,6 +222,11 @@ function MyGaragePage() {
                         src={getRenderableVehicleImageUrl(carImages[car.id]) ?? carImages[car.id]}
                         alt={`${car.make} ${car.model}`}
                         className="h-full w-full object-contain p-6 drop-shadow-[0px_16px_24px_rgba(0,0,0,0.14)] transition-transform duration-500 group-hover:scale-105"
+                        onError={(e) => {
+                          if (e.currentTarget.src !== fallbackVehicleImage) {
+                            e.currentTarget.src = fallbackVehicleImage;
+                          }
+                        }}
                       />
                     ) : (
                       <div className="flex h-full items-center justify-center">

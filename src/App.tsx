@@ -8,6 +8,7 @@ import LoginPage from "./pages/LoginPage";
 import MyGaragePage from "./pages/MyGaragePage";
 import OnboardingPage from "./pages/OnboardingPage";
 import RegisterPage from "./pages/RegisterPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import VehicleDocumentsPage from "./pages/VehicleDocumentsPage";
 import VehicleDashboardPage from "./pages/VehicleDashboardPage";
 import VehicleMileagePage from "./pages/VehicleMileagePage";
@@ -21,6 +22,7 @@ function App() {
       <Route path="/checkout/plus" element={<CheckoutPlusPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       
       {/* Auth flow */}
       <Route path="/verify" element={<VerificationPage />} />

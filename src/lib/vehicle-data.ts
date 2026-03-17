@@ -3,6 +3,7 @@ import { SUPABASE_ANON_KEY, supabase } from "./supabase";
 
 const GENERATED_PLACEHOLDER_PREFIX = "data:image/svg+xml,";
 const vehicleImageRequestCache = new Map<string, Promise<string>>();
+const enableCarsXeDevProxy = import.meta.env.DEV && import.meta.env.VITE_ENABLE_CARSXE_DEV_PROXY === "true";
 const lowQualityImageKeywords = [
   "carsized",
   "alicdn",
@@ -247,7 +248,7 @@ export const CAR_MODELS: Record<string, string[]> = {
 export const BODY_TYPES = [
   { value: "sedan", label: "Sedan" },
   { value: "hatchback", label: "Hatchback" },
-  { value: "suv", label: "SUV / Xhip" },
+  { value: "suv", label: "Xhip" },
   { value: "crossover", label: "Crossover" },
   { value: "coupe", label: "Coupe" },
   { value: "convertible", label: "Kabriolet" },
@@ -320,7 +321,7 @@ async function fetchCarsXeImageDirect(
   year?: number,
   color?: string
 ): Promise<string | null> {
-  if (!import.meta.env.DEV) {
+  if (!enableCarsXeDevProxy) {
     return null;
   }
 

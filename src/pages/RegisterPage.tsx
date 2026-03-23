@@ -212,6 +212,13 @@ function RegisterPage() {
             Pajtohem me kushtet dhe privatësinë
           </label>
 
+          <div className="text-sm font-medium text-red-500">
+            {form.fullName && form.fullName.trim().length < 2 && <p>• Emri duhet të ketë të paktën 2 shkronja.</p>}
+            {form.email && !/\S+@\S+\.\S+/.test(form.email) && <p>• E-maili nuk është i saktë.</p>}
+            {form.password && form.password.length < 8 && <p>• Fjalëkalimi duhet të ketë të paktën 8 karaktere.</p>}
+            {form.confirmPassword && form.password !== form.confirmPassword && <p>• Fjalëkalimet nuk përputhen.</p>}
+          </div>
+
           {error ? <p className="text-sm font-semibold text-red-600">{error}</p> : null}
           {message ? <p className="text-sm font-semibold text-emerald-600">{message}</p> : null}
 

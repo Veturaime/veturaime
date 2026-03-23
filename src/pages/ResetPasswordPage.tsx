@@ -178,6 +178,11 @@ function ResetPasswordPage() {
               </div>
             </div>
 
+            <div className="text-sm font-medium text-red-500">
+              {newPassword && newPassword.length < 8 && <p>• Fjalëkalimi duhet të ketë të paktën 8 karaktere.</p>}
+              {confirmPassword && newPassword !== confirmPassword && <p>• Fjalëkalimet nuk përputhen.</p>}
+            </div>
+
             {error ? <p className="text-sm font-semibold text-red-600">{error}</p> : null}
             {message ? <p className="text-sm font-semibold text-emerald-600">{message}</p> : null}
 

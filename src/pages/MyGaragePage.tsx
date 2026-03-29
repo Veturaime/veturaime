@@ -66,13 +66,18 @@ function MyGaragePage() {
             return { id: car.id, url: car.image_url };
           }
 
-          const url = await fetchVehicleImage(
+          let url = await fetchVehicleImage(
             car.make,
             car.model,
             car.year ?? undefined,
             car.body_type ?? undefined,
             car.color ?? undefined
           );
+
+          // Retry with minimal query when API rejects over-specific parameters.
+          if (isGeneratedVehiclePlaceholder(url)) {
+            url = await fetchVehicleImage(car.make, car.model);
+          }
 
           if (url && !isGeneratedVehiclePlaceholder(url) && url !== car.image_url) {
             void updateCar(car.id, { image_url: url }).catch(() => undefined);

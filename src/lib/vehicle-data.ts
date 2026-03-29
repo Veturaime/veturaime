@@ -579,7 +579,14 @@ export async function fetchVehicleImage(
   vehicleImageRequestCache.set(cacheKey, request);
 
   try {
-    return await request;
+    const resolved = await request;
+
+    // Keep cache only for non-generated images so future attempts can retry APIs.
+    if (isGeneratedVehiclePlaceholder(resolved)) {
+      vehicleImageRequestCache.delete(cacheKey);
+    }
+
+    return resolved;
   } catch (error) {
     vehicleImageRequestCache.delete(cacheKey);
     throw error;

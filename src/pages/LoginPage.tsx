@@ -20,10 +20,25 @@ const initialForm: LoginForm = {
   password: ""
 };
 
+function mapLoginErrorMessage(rawMessage: string) {
+  const normalized = rawMessage.toLowerCase();
+
+  if (normalized.includes("invalid login credentials")) {
+    return "Email ose fjalëkalimi nuk përputhen me këtë llogari. Nëse ke ndërruar projektin ose nuk e mban mend fjalëkalimin, përdor 'E harrove fjalëkalimin?'.";
+  }
+
+  if (normalized.includes("email not confirmed")) {
+    return "Email-i nuk është verifikuar ende. Kontrollo inbox-in dhe konfirmo llogarinë.";
+  }
+
+  return rawMessage;
+}
+
 function LoginPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState<LoginForm>(initialForm);
   const [showPassword, setShowPassword] = useState(false);
+  const [passwordFieldUnlocked, setPasswordFieldUnlocked] = useState(false);
   const [remember, setRemember] = useState(getRememberPreference);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -51,7 +66,7 @@ function LoginPage() {
       });
 
       if (signInError) {
-        setError(signInError.message);
+        setError(mapLoginErrorMessage(signInError.message));
         return;
       }
 
@@ -116,7 +131,8 @@ function LoginPage() {
               type="email"
               value={form.email}
               onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-              autoComplete="email"
+              autoComplete="username"
+              name="login-email"
               className="h-12 w-full rounded-xl border border-deep/15 bg-white px-3 text-base outline-none ring-mint/40 transition focus:border-slateBlue/30 focus:ring focus:ring-mint/35"
               placeholder="emri@shembull.com"
               required
@@ -130,7 +146,10 @@ function LoginPage() {
                 type={showPassword ? "text" : "password"}
                 value={form.password}
                 onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
-                autoComplete="current-password"
+                autoComplete="new-password"
+                name="login-password-manual"
+                readOnly={!passwordFieldUnlocked}
+                onFocus={() => setPasswordFieldUnlocked(true)}
                 className="h-12 w-full rounded-xl border border-deep/15 bg-white px-3 pr-12 text-base outline-none ring-mint/40 transition focus:border-slateBlue/30 focus:ring focus:ring-mint/35"
                 placeholder="********"
                 required

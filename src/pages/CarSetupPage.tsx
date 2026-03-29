@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { CarInput } from "../lib/database.types";
 import { createCar, supabase } from "../lib/supabase";
@@ -50,6 +50,7 @@ function CarSetupPage() {
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [makeSearch, setMakeSearch] = useState("");
   const [modelSearch, setModelSearch] = useState("");
+  const imageFetchRequestIdRef = useRef(0);
 
   const years = useMemo(() => getYearOptions(), []);
   const availableModels = useMemo(() => CAR_MODELS[make] || [], [make]);
@@ -93,6 +94,10 @@ function CarSetupPage() {
       return;
     }
 
+    const currentRequestId = imageFetchRequestIdRef.current + 1;
+    imageFetchRequestIdRef.current = currentRequestId;
+    let active = true;
+
     const fetchImage = async () => {
       setFetchingImage(true);
       try {
@@ -103,15 +108,25 @@ function CarSetupPage() {
           bodyType || undefined,
           color || undefined
         );
-        setImageUrl(resolvedUrl);
+        if (active && currentRequestId === imageFetchRequestIdRef.current) {
+          setImageUrl(resolvedUrl);
+        }
       } catch {
-        setImageUrl(null);
+        if (active && currentRequestId === imageFetchRequestIdRef.current) {
+          setImageUrl(null);
+        }
       } finally {
-        setFetchingImage(false);
+        if (active && currentRequestId === imageFetchRequestIdRef.current) {
+          setFetchingImage(false);
+        }
       }
     };
 
     void fetchImage();
+
+    return () => {
+      active = false;
+    };
   }, [make, model, year, bodyType, color]);
 
   const canProceedToDetails = make && model;
@@ -141,6 +156,19 @@ function CarSetupPage() {
     setLoading(true);
 
     try {
+      let resolvedImageUrl = imageUrl;
+
+      if (!resolvedImageUrl && make && model) {
+        resolvedImageUrl = await fetchVehicleImage(
+          make,
+          model,
+          year ?? undefined,
+          bodyType || undefined,
+          color || undefined
+        );
+        setImageUrl(resolvedImageUrl);
+      }
+
       const carData: CarInput = {
         make,
         model,
@@ -153,7 +181,7 @@ function CarSetupPage() {
         color: color || null,
         usage_type: usageType || null,
         mileage,
-        image_url: imageUrl,
+        image_url: resolvedImageUrl,
         is_primary: true
       };
 
@@ -748,7 +776,7 @@ function CarSetupPage() {
                 <button
                   type="button"
                   onClick={onSubmit}
-                  disabled={loading}
+                  disabled={loading || fetchingImage}
                   className="flex h-14 flex-1 items-center justify-center gap-2 rounded-xl bg-[#2D3A3A] font-bold text-white shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition hover:bg-[#253030] disabled:opacity-50"
                 >
                   {loading ? (

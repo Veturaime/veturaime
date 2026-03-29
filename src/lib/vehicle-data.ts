@@ -477,78 +477,70 @@ async function fetchCarsXeImage(
   }
 }
 
-// Strategy 2: Generate a placeholder with car silhouette based on body type
-function generatePlaceholderImage(make: string, model: string, bodyType?: string): string {
-  // Use a consistent hash for the same make/model to get the same color
+async function fetchWikipediaCarImage(make: string, model: string): Promise<string | null> {
+  try {
+    const query = `${make}_${model}`.replace(/\s+/g, '_');
+    const url = `https://en.wikipedia.org/w/api.php?action=query&prop=pageimages&titles=${encodeURIComponent(query)}&pithumbsize=800&format=json&origin=*`;
+    
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    const pages = data.query?.pages;
+    
+    if (!pages) return null;
+    
+    // Get the first page's thumbnail
+    const pageIds = Object.keys(pages);
+    if (pageIds.length > 0 && pageIds[0] !== '-1') {
+      const page = pages[pageIds[0]];
+      if (page.thumbnail && page.thumbnail.source) {
+        return page.thumbnail.source;
+      }
+    }
+    
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Generate a premium placeholder image
+function generatePlaceholderImage(make: string, model: string, _bodyType?: string): string {
+  // Use a consistent modern gradient based on hash
   const hash = (make + model).split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const hue = hash % 360;
   
-  // Return an SVG data URL with a car silhouette
+  // High-end premium aesthetic for the fallback
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">
       <defs>
         <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:hsl(${hue}, 25%, 18%);stop-opacity:1" />
-          <stop offset="100%" style="stop-color:hsl(${hue}, 35%, 12%);stop-opacity:1" />
-        </linearGradient>
-        <linearGradient id="car" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" style="stop-color:hsl(${hue}, 60%, 55%);stop-opacity:1" />
-          <stop offset="100%" style="stop-color:hsl(${hue}, 50%, 40%);stop-opacity:1" />
+          <stop offset="0%" stop-color="hsl(${hue}, 15%, 25%)" />
+          <stop offset="100%" stop-color="hsl(${hue}, 20%, 10%)" />
         </linearGradient>
       </defs>
-      <rect width="800" height="500" fill="url(#bg)"/>
-      <g transform="translate(100, 180)">
-        ${getCarSilhouettePath(bodyType)}
+      <rect width="800" height="500" rx="40" fill="url(#bg)"/>
+      
+      <!-- Modern, perfectly proportioned sleek car silhouette -->
+      <g transform="translate(190, 160)" fill="none" stroke="rgba(255, 255, 255, 0.4)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M 40 140 L 70 140 C 70 140 85 80 150 70 C 200 60 260 60 310 70 C 375 80 390 140 390 140 L 410 140 C 430 140 440 155 440 170 L 440 200 C 440 215 430 230 410 230 L 370 230 M 80 230 L 10 230 C -10 230 -20 215 -20 200 L -20 170 C -20 155 -10 140 10 140 L 40 140" />
+        <!-- Wheels -->
+        <circle cx="70" cy="230" r="35" fill="hsl(${hue}, 20%, 10%)" />
+        <circle cx="350" cy="230" r="35" fill="hsl(${hue}, 20%, 10%)" />
+        <!-- Windows -->
+        <path d="M 130 72 L 110 140 M 330 72 L 350 140 M 230 65 L 230 140" stroke-width="8" />
+        <!-- Speed/Motion lines to make it dynamic -->
+        <path d="M -60 170 L -40 170 M -80 200 L -50 200 M -40 140 L -20 140" stroke="rgba(255,255,255,0.2)" stroke-width="6" />
       </g>
-      <text x="400" y="440" font-family="system-ui, sans-serif" font-size="28" font-weight="700" fill="rgba(255,255,255,0.9)" text-anchor="middle">${make} ${model}</text>
+      
+      <!-- High-end typography -->
+      <text x="400" y="410" font-family="system-ui, -apple-system, sans-serif" font-size="36" font-weight="700" fill="rgba(255, 255, 255, 0.95)" text-anchor="middle" letter-spacing="1">${make} ${model}</text>
+      <text x="400" y="445" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="500" fill="rgba(255, 255, 255, 0.4)" text-anchor="middle" letter-spacing="4">NO IMAGE AVAILABLE</text>
     </svg>
   `;
   
   return `${GENERATED_PLACEHOLDER_PREFIX}${encodeURIComponent(svg)}`;
-}
-
-function getCarSilhouettePath(bodyType?: string): string {
-  // Different silhouettes based on body type
-  switch (bodyType?.toLowerCase()) {
-    case "suv":
-    case "crossover":
-      return `<path d="M50 120 L80 120 L100 80 L180 60 L450 60 L500 80 L520 120 L550 120 L560 130 L560 150 L530 150 L520 170 L480 170 L470 150 L130 150 L120 170 L80 170 L70 150 L40 150 L40 130 Z" fill="url(#car)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
-             <circle cx="130" cy="165" r="35" fill="#1a1a1a" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
-             <circle cx="470" cy="165" r="35" fill="#1a1a1a" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
-             <rect x="120" y="70" width="100" height="45" rx="5" fill="rgba(100,200,255,0.3)"/>
-             <rect x="320" y="70" width="120" height="45" rx="5" fill="rgba(100,200,255,0.3)"/>`;
-    case "hatchback":
-      return `<path d="M50 140 L90 140 L110 100 L180 70 L380 70 L450 100 L480 140 L530 140 L540 150 L540 165 L510 165 L500 180 L460 180 L450 165 L140 165 L130 180 L90 180 L80 165 L50 165 L50 150 Z" fill="url(#car)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
-             <circle cx="130" cy="175" r="32" fill="#1a1a1a" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
-             <circle cx="450" cy="175" r="32" fill="#1a1a1a" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
-             <path d="M130 80 L170 80 L180 110 L115 110 Z" fill="rgba(100,200,255,0.3)"/>
-             <rect x="250" y="80" width="130" height="45" rx="5" fill="rgba(100,200,255,0.3)"/>`;
-    case "coupe":
-    case "convertible":
-      return `<path d="M40 145 L80 145 L100 105 L200 65 L400 65 L480 105 L510 145 L560 145 L570 155 L570 170 L540 170 L530 185 L490 185 L480 170 L120 170 L110 185 L70 185 L60 170 L30 170 L30 155 Z" fill="url(#car)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
-             <circle cx="115" cy="180" r="30" fill="#1a1a1a" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
-             <circle cx="485" cy="180" r="30" fill="#1a1a1a" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
-             <path d="M140 75 L190 75 L210 105 L125 105 Z" fill="rgba(100,200,255,0.3)"/>
-             <rect x="280" y="75" width="140" height="40" rx="5" fill="rgba(100,200,255,0.3)"/>`;
-    case "wagon":
-      return `<path d="M40 130 L80 130 L100 90 L180 70 L480 70 L500 90 L510 130 L560 130 L570 140 L570 160 L540 160 L530 175 L490 175 L480 160 L120 160 L110 175 L70 175 L60 160 L30 160 L30 140 Z" fill="url(#car)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
-             <circle cx="115" cy="170" r="32" fill="#1a1a1a" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
-             <circle cx="485" cy="170" r="32" fill="#1a1a1a" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
-             <rect x="120" y="75" width="90" height="45" rx="5" fill="rgba(100,200,255,0.3)"/>
-             <rect x="260" y="75" width="180" height="45" rx="5" fill="rgba(100,200,255,0.3)"/>`;
-    case "pickup":
-      return `<path d="M50 120 L90 120 L110 80 L180 60 L280 60 L300 90 L310 120 L550 120 L560 130 L560 155 L530 155 L520 170 L480 170 L470 155 L130 155 L120 170 L80 170 L70 155 L40 155 L40 130 Z" fill="url(#car)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
-             <circle cx="125" cy="165" r="32" fill="#1a1a1a" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
-             <circle cx="475" cy="165" r="32" fill="#1a1a1a" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
-             <rect x="120" y="70" width="90" height="40" rx="5" fill="rgba(100,200,255,0.3)"/>
-             <rect x="310" y="90" width="220" height="25" fill="rgba(0,0,0,0.3)"/>`;
-    default: // sedan
-      return `<path d="M40 140 L80 140 L100 100 L180 70 L420 70 L480 100 L510 140 L560 140 L570 150 L570 168 L540 168 L530 183 L490 183 L480 168 L120 168 L110 183 L70 183 L60 168 L30 168 L30 150 Z" fill="url(#car)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
-             <circle cx="115" cy="178" r="32" fill="#1a1a1a" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
-             <circle cx="485" cy="178" r="32" fill="#1a1a1a" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
-             <path d="M130 80 L175 80 L195 105 L115 105 Z" fill="rgba(100,200,255,0.3)"/>
-             <rect x="260" y="80" width="150" height="40" rx="5" fill="rgba(100,200,255,0.3)"/>`;
-  }
 }
 
 // Main function to fetch vehicle image
@@ -571,6 +563,12 @@ export async function fetchVehicleImage(
 
     if (realImage) {
       return realImage;
+    }
+
+    // Try Wikipedia API as a highly reliable free fallback before giving up
+    const wikiImage = await fetchWikipediaCarImage(make, model);
+    if (wikiImage) {
+      return wikiImage;
     }
 
     return generatePlaceholderImage(make, model, bodyType);

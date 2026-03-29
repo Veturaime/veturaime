@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:build": "npm run build",
+    "check:supabase": "node test-supabase.js",
+    "check:carsxe": "node test-carsxe.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

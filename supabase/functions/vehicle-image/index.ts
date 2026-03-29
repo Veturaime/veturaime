@@ -157,6 +157,159 @@ function normalizeRequest(body: VehicleImageRequest) {
   } as const;
 }
 
+function stripDiacritics(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeSpaces(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function uniqueNonEmpty(values: string[]) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const raw of values) {
+    const value = normalizeSpaces(raw);
+    if (!value) {
+      continue;
+    }
+
+    const key = value.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    result.push(value);
+  }
+
+  return result;
+}
+
+function addAlphanumericModelVariants(inputModel: string) {
+  const variants: string[] = [];
+  const model = normalizeSpaces(inputModel);
+
+  const spacedAlphaNumeric = model.match(/^([A-Za-z]{1,3})\s+([0-9]{1,3}[A-Za-z]?)$/);
+  if (spacedAlphaNumeric) {
+    variants.push(`${spacedAlphaNumeric[1]}${spacedAlphaNumeric[2]}`);
+    variants.push(`${spacedAlphaNumeric[1]}-${spacedAlphaNumeric[2]}`);
+  }
+
+  const compactAlphaNumeric = model.match(/^([A-Za-z]{1,3})([0-9]{1,3}[A-Za-z]?)$/);
+  if (compactAlphaNumeric) {
+    variants.push(`${compactAlphaNumeric[1]} ${compactAlphaNumeric[2]}`);
+    variants.push(`${compactAlphaNumeric[1]}-${compactAlphaNumeric[2]}`);
+  }
+
+  const hyphenClass = model.match(/^([A-Za-z]{1,2})\s*[- ]\s*Class$/i);
+  if (hyphenClass) {
+    variants.push(`${hyphenClass[1]}-Class`);
+    variants.push(`${hyphenClass[1]} Class`);
+  }
+
+  if (/^id\s*\.?\s*[0-9]$/i.test(model)) {
+    const compactId = model.replace(/\s+/g, "").replace(/^id/i, "ID");
+    variants.push(compactId.replace(/^ID(\d)/, "ID.$1"));
+    variants.push(compactId.replace(".", ""));
+  }
+
+  return variants;
+}
+
+function normalizeModelTokens(model: string, make: string) {
+  const normalized = stripDiacritics(model);
+  const normalizedMake = stripDiacritics(make).toLowerCase();
+  const variants = [normalized];
+
+  const bmwSeriesMatch = normalized.match(/^seria\s*([1-8])$/i);
+  if (bmwSeriesMatch && normalizedMake === "bmw") {
+    variants.push(`${bmwSeriesMatch[1]} Series`);
+  }
+
+  variants.push(normalized.replace(/^seria\s+/i, "Series "));
+  variants.push(normalized.replace(/\bklasa\b/gi, "Class"));
+  variants.push(normalized.replace(/\bseria\b/gi, "Series"));
+  variants.push(normalized.replace(/[\-_/]+/g, " "));
+  variants.push(...addAlphanumericModelVariants(normalized));
+
+  const translated = normalized.replace(/\bklasa\b/gi, "Class").replace(/\bseria\b/gi, "Series");
+  variants.push(...addAlphanumericModelVariants(translated));
+
+  return uniqueNonEmpty(variants).slice(0, 8);
+}
+
+function getMakeAliases(make: string) {
+  const normalized = stripDiacritics(make);
+  const key = normalized.toLowerCase();
+  const variants = [normalized, normalized.replace(/-/g, " "), normalized.replace(/\s+/g, "")];
+
+  if (key === "mercedes-benz" || key === "mercedes benz" || key === "mercedes") {
+    variants.push("Mercedes-Benz", "Mercedes Benz", "Mercedes");
+  }
+
+  if (key === "skoda" || key === "škoda") {
+    variants.push("Skoda", "Skoda Auto");
+  }
+
+  if (key === "citroen" || key === "citroen") {
+    variants.push("Citroen");
+  }
+
+  if (key === "vw" || key === "volkswagen") {
+    variants.push("Volkswagen", "VW");
+  }
+
+  return uniqueNonEmpty(variants).slice(0, 4);
+}
+
+function buildSearchPairs(make: string, model: string) {
+  const makeVariants = getMakeAliases(make);
+  const modelVariants = normalizeModelTokens(model, make);
+  const primaryMake = makeVariants[0] ?? make;
+  const primaryModel = modelVariants[0] ?? model;
+  const pairs: Array<{ make: string; model: string }> = [{ make: primaryMake, model: primaryModel }];
+
+  for (const makeVariant of makeVariants) {
+    pairs.push({ make: makeVariant, model: primaryModel });
+  }
+
+  for (const modelVariant of modelVariants) {
+    pairs.push({ make: primaryMake, model: modelVariant });
+  }
+
+  if (makeVariants.length > 1 && modelVariants.length > 1) {
+    pairs.push({ make: makeVariants[1], model: modelVariants[1] });
+  }
+
+  const uniquePairs = new Set<string>();
+  const deduped: Array<{ make: string; model: string }> = [];
+
+  for (const pair of pairs) {
+    const key = `${pair.make.toLowerCase()}|${pair.model.toLowerCase()}`;
+    if (uniquePairs.has(key)) {
+      continue;
+    }
+
+    uniquePairs.add(key);
+    deduped.push(pair);
+  }
+
+  return deduped.slice(0, 8);
+}
+
+function normalizeForCarsXe(payload: NormalizedVehicleImageRequest): NormalizedVehicleImageRequest {
+  const normalizedMake = getMakeAliases(payload.make)[0] ?? stripDiacritics(payload.make.trim());
+  const normalizedModel = normalizeModelTokens(payload.model, payload.make)[0] ?? stripDiacritics(payload.model.trim());
+
+  return {
+    ...payload,
+    make: normalizedMake,
+    model: normalizedModel
+  };
+}
+
 function buildCacheKey(payload: NormalizedVehicleImageRequest) {
   return `${payload.make.toLowerCase()}|${payload.model.toLowerCase()}|${payload.year ?? ""}|${payload.color?.toLowerCase() ?? ""}`;
 }
@@ -185,21 +338,31 @@ function setCachedImage(cacheKey: string, imageUrl: string | null) {
 function buildCandidates(make: string, model: string, year?: number | null, color?: string | null) {
   const normalizedColor = color?.trim().toLowerCase() || undefined;
   const normalizedYear = year ? String(year) : undefined;
-  const base = {
-    make: make.trim(),
-    model: model.trim(),
-    format: "json",
-    transparent: "false"
-  } as const;
+  const pairs = buildSearchPairs(make, model);
+  const candidates: Array<Record<string, string>> = [];
 
-  return [
-    { ...base, year: normalizedYear },
-    { ...base, year: normalizedYear, angle: "front" },
-    { ...base, year: normalizedYear, angle: "side" },
-    base,
-    { ...base, color: normalizedColor },
-    { ...base, year: normalizedYear, color: normalizedColor }
-  ];
+  for (const pair of pairs) {
+    const base = {
+      make: pair.make,
+      model: pair.model,
+      format: "json",
+      transparent: "false"
+    };
+
+    if (normalizedYear) {
+      candidates.push({ ...base, year: normalizedYear });
+      candidates.push({ ...base, year: normalizedYear, angle: "front" });
+      candidates.push({ ...base, year: normalizedYear, angle: "side" });
+    }
+
+    candidates.push(base);
+
+    if (normalizedColor) {
+      candidates.push({ ...base, color: normalizedColor });
+    }
+  }
+
+  return candidates.slice(0, 24);
 }
 
 function selectBestImage(images?: CarsXeImage[]) {
@@ -328,7 +491,7 @@ Deno.serve(async (request: Request) => {
     return json({ error: normalized.error }, { status: 400 });
   }
 
-  const payload = normalized.value;
+  const payload = normalizeForCarsXe(normalized.value);
   const cacheKey = buildCacheKey(payload);
   const cachedImageUrl = getCachedImage(cacheKey);
 

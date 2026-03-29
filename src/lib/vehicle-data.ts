@@ -315,6 +315,68 @@ function buildVehicleImageCacheKey(
   return [make.trim().toLowerCase(), model.trim().toLowerCase(), year ?? "", bodyType ?? "", color ?? ""].join("|");
 }
 
+function stripDiacritics(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeSpaces(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function toPrimaryModelVariant(model: string, make: string) {
+  let normalizedModel = normalizeSpaces(stripDiacritics(model.trim()));
+
+  if (/^bmw$/i.test(make)) {
+    const bmwSeriesMatch = normalizedModel.match(/^seria\s*([1-8])$/i);
+    if (bmwSeriesMatch) {
+      return `${bmwSeriesMatch[1]} Series`;
+    }
+  }
+
+  normalizedModel = normalizedModel.replace(/\bklasa\b/gi, "Class");
+  normalizedModel = normalizedModel.replace(/\bseria\b/gi, "Series");
+
+  const spacedAlphaNumeric = normalizedModel.match(/^([A-Za-z]{1,3})\s+([0-9]{1,3}[A-Za-z]?)$/);
+  if (spacedAlphaNumeric) {
+    normalizedModel = `${spacedAlphaNumeric[1]}${spacedAlphaNumeric[2]}`;
+  }
+
+  const hyphenClass = normalizedModel.match(/^([A-Za-z]{1,2})\s*[- ]\s*Class$/i);
+  if (hyphenClass) {
+    normalizedModel = `${hyphenClass[1]}-Class`;
+  }
+
+  if (/^id\s*\.?\s*[0-9]$/i.test(normalizedModel)) {
+    normalizedModel = normalizedModel.replace(/\s+/g, "").replace(/^id/i, "ID").replace(/^ID(\d)/, "ID.$1");
+  }
+
+  return normalizedModel;
+}
+
+function normalizeVehicleSearchInput(make: string, model: string) {
+  const normalizedMake = normalizeSpaces(stripDiacritics(make.trim()));
+  const normalizedModel = toPrimaryModelVariant(model, normalizedMake);
+
+  if (/^mercedes\s*-?\s*benz$/i.test(normalizedMake)) {
+    return {
+      make: "Mercedes-Benz",
+      model: normalizedModel
+    };
+  }
+
+  if (/^skoda$/i.test(normalizedMake)) {
+    return {
+      make: "Skoda",
+      model: normalizedModel
+    };
+  }
+
+  return {
+    make: normalizedMake,
+    model: normalizedModel
+  };
+}
+
 async function fetchCarsXeImageDirect(
   make: string,
   model: string,
@@ -325,9 +387,11 @@ async function fetchCarsXeImageDirect(
     return null;
   }
 
+  const normalizedVehicle = normalizeVehicleSearchInput(make, model);
+
   const params = new URLSearchParams({
-    make,
-    model
+    make: normalizedVehicle.make,
+    model: normalizedVehicle.model
   });
 
   if (year) {
@@ -364,6 +428,8 @@ async function fetchCarsXeImage(
   }
 
   try {
+    const normalizedVehicle = normalizeVehicleSearchInput(make, model);
+
     const invokeVehicleImage = async () => {
       const { data, error } = await supabase.functions.invoke<{
         imageUrl?: string | null;
@@ -375,8 +441,8 @@ async function fetchCarsXeImage(
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`
         },
         body: {
-          make,
-          model,
+          make: normalizedVehicle.make,
+          model: normalizedVehicle.model,
           year: year ?? null,
           color: color ?? null
         }

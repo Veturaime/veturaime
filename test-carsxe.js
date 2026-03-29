@@ -1,8 +1,13 @@
 import * as https from "https";
 
-const apiKey = "828wtu6h0_2jj4u22sx_is3i7go2e";
+const apiKey = process.env.CARSXE_API_KEY;
 const make = "Volkswagen";
 const model = "Golf";
+
+if (!apiKey) {
+    console.error("Missing CARSXE_API_KEY in environment.");
+    process.exit(1);
+}
 
 const url = `https://api.carsxe.com/images?key=${apiKey}&format=json&transparent=false&make=${make}&model=${model}`;
 
